@@ -1,0 +1,10 @@
+{
+  "name": "facilitymind-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FacilityMind AI - Unified Multi-Agent Decision Intelligence Platform",
+  "scripts": {
+    "start": "python run.py",
+    "dev": "python run.py"
+  }
+}
