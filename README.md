@@ -356,8 +356,8 @@ c:/Users/Username/OneDrive/Desktop/hackthon/Faculty project/
 
 ### Step 1: Clone Repository
 ```bash
-git clone https://github.com/your-username/facilitymind-ai.git
-cd facilitymind-ai
+git clone https://github.com/ayaanamp/FacilityMind-ai.git
+cd FacilityMind-ai
 ```
 
 ### Step 2: Configure Environment Variables
@@ -738,6 +738,7 @@ To maintain transparent, professional engineering integrity:
 ## 24. Hackathon Context & Submission Details
 
 - **Project Name**: FacilityMind AI
+- **Repository**: [https://github.com/ayaanamp/FacilityMind-ai](https://github.com/ayaanamp/FacilityMind-ai)
 - **Track**: Autonomous Multi-Agent AI / Enterprise Decision Intelligence
 - **Primary AI Models**: Google Gemini 2.5 Flash / Google Text-Embedding-004
 - **Agent Framework**: LangGraph 0.2
@@ -746,4 +747,15 @@ To maintain transparent, professional engineering integrity:
 
 ---
 
-*Built with precision for Autonomous Campus & Facility Intelligence.*
+## 25. Team & Engineering Responsibilities
+
+| Member | Role | Core Responsibility Areas |
+| :--- | :--- | :--- |
+| **Ayaan** | **Team Leader / Lead Developer** | System Architecture, LangGraph Multi-Agent Pipeline, End-to-End Integration, AI Orchestration & Release Management |
+| **Rajashaker** | **Backend & API Engineer** | FastAPI REST Endpoints, Pydantic Schema Validation, Async Service Lifecycle & Route Architecture |
+| **Manoj** | **Database & RAG Engineer** | SQLite / SQLAlchemy Persistence, Historical Maintenance Dataset Curation & Cosine Vector Retrieval |
+| **Yadhas** | **Frontend & QA Engineer** | React / Vite Obsidian UI Development, Interactive Recharts Data Visualizations & Testing Verification |
+
+---
+
+*FacilityMind AI — Autonomous Campus & Facility Decision Intelligence.*

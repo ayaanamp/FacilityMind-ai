@@ -32,10 +32,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await conn.run_sync(reconcile_database_schema)
 
     # 2. Try loading vector store or seed if empty
-    csv_path = Path("data/maintenance_records.csv")
     if not vector_store.load() or vector_store.count() == 0:
         async with AsyncSessionLocal() as session:
-            await seed_database_and_index(session, csv_path)
+            await seed_database_and_index(session)
 
     yield
 

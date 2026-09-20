@@ -53,7 +53,7 @@ def run_step(step_name: str, cmd: list[str], cwd: Path) -> bool:
 def main() -> int:
     """Main verification orchestrator."""
     print("=" * 60)
-    print("ANTIGRAVITY WORKSPACE VERIFICATION GATE")
+    print("FACILITYMIND AI PLATFORM VERIFICATION GATE")
     print("=" * 60)
 
     # Determine Python executable
