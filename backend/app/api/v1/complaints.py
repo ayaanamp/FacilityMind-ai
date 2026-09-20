@@ -1,17 +1,24 @@
-"""Complaints and Decision intake REST API endpoints."""
+"""Complaints, Tracking, Lifecycle, and Decision intake REST API endpoints."""
+
+from __future__ import annotations
 
 import contextlib
+import datetime
 import json
 
 from backend.app.agents.orchestrator import orchestrator
+from backend.app.core.events import event_bus
 from backend.app.database.session import get_db
 from backend.app.models.maintenance import (
     AgentRun,
     Complaint,
+    ComplaintTimelineEvent,
     Diagnosis,
     MaintenanceRecord,
+    Notification,
     Recommendation,
     TechnicianFeedback,
+    TechnicianStaff,
 )
 from backend.app.schemas.agent import (
     AgentRunItem,
@@ -20,13 +27,25 @@ from backend.app.schemas.agent import (
     ExplanationOutput,
     RecommendationOutput,
 )
-from backend.app.schemas.complaint import ComplaintCreate, ComplaintResponse
+from backend.app.schemas.complaint import (
+    ComplaintCreate,
+    ComplaintReopenRequest,
+    ComplaintResolveRequest,
+    ComplaintResponse,
+    ComplaintTrackResponse,
+    TimelineEventResponse,
+)
 from backend.app.schemas.decision import DecisionReportResponse, SimilarCaseItem
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/complaints", tags=["Complaints & Decisions"])
+
+
+def _format_now() -> str:
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 @router.post("", response_model=DecisionReportResponse)
@@ -34,24 +53,46 @@ async def create_and_analyze_complaint(
     payload: ComplaintCreate,
     db: AsyncSession = Depends(get_db),
 ) -> DecisionReportResponse:
-    """Submit a complaint and execute the end-to-end multi-agent decision workflow."""
+    """Submit a complaint, assign tracking code, execute multi-agent AI, log timeline events, and broadcast."""
+    now_str = _format_now()
+
     # 1. Create initial complaint entry in DB
     complaint = Complaint(
         raw_complaint=payload.raw_complaint,
-        equipment_type=payload.equipment_type,
+        title=payload.title or (payload.raw_complaint[:60] + "..." if len(payload.raw_complaint) > 60 else payload.raw_complaint),
+        equipment_type=payload.equipment_type or "General Facility",
         equipment_id=payload.equipment_id,
-        location=payload.location,
+        location=payload.location or "Main Campus",
+        building=payload.building or "",
+        floor=payload.floor or "",
+        room=payload.room or "",
         severity=payload.severity or "Medium",
-        status="Analyzing",
+        status="SUBMITTED",
         reporter_name=payload.reporter_name or "Campus Member",
         reporter_dept=payload.reporter_dept or "General Facility",
         noticed_at=payload.noticed_at,
         reporter_phone=payload.reporter_phone,
-        work_order_status="Technician Assigned",
+        work_order_status="Triage Pending",
+        created_at=now_str,
+        updated_at=now_str,
     )
     db.add(complaint)
     await db.commit()
     await db.refresh(complaint)
+
+    # Assign readable tracking code
+    complaint.tracking_code = f"FM-{complaint.id:04d}"
+
+    # Add initial SUBMITTED timeline event
+    evt_sub = ComplaintTimelineEvent(
+        complaint_id=complaint.id,
+        event_type="SUBMITTED",
+        actor_name=complaint.reporter_name or "Complainant",
+        actor_role="User",
+        message=f"Complaint #{complaint.tracking_code} submitted via portal.",
+        created_at=now_str,
+    )
+    db.add(evt_sub)
 
     # 2. Execute Multi-Agent Orchestrator
     state = await orchestrator.execute_pipeline(
@@ -75,10 +116,20 @@ async def create_and_analyze_complaint(
     complaint.location = payload.location or analysis.location
     complaint.symptoms = payload.raw_complaint or analysis.symptoms
     complaint.severity = payload.severity or analysis.severity
-    complaint.reporter_name = payload.reporter_name or complaint.reporter_name
-    complaint.reporter_phone = payload.reporter_phone or complaint.reporter_phone
-    complaint.reporter_dept = payload.reporter_dept or complaint.reporter_dept
-    complaint.status = "Analyzed"
+    complaint.status = "UNDER_REVIEW"
+    complaint.work_order_status = "AI Triaged"
+    complaint.updated_at = _format_now()
+
+    # Add AI_ANALYZED timeline event
+    evt_ai = ComplaintTimelineEvent(
+        complaint_id=complaint.id,
+        event_type="AI_ANALYZED",
+        actor_name="FacilityMind AI Engine",
+        actor_role="System",
+        message=f"Multi-Agent diagnosis completed: {diagnosis.primary_cause}. Confidence: {diagnosis.confidence_level}.",
+        created_at=_format_now(),
+    )
+    db.add(evt_ai)
 
     # Save Diagnosis record
     diag_record = Diagnosis(
@@ -128,7 +179,7 @@ async def create_and_analyze_complaint(
             )
         )
 
-    # 3. Create linked Knowledge Base MaintenanceRecord so it appears immediately in Knowledge Base & Evidence Explorer
+    # 3. Create linked Knowledge Base MaintenanceRecord
     kb_record = MaintenanceRecord(
         equipment_type=complaint.equipment_type,
         equipment_id=complaint.equipment_id or f"WO-{complaint.id:04d}",
@@ -142,21 +193,41 @@ async def create_and_analyze_complaint(
         repair_time=rec.repair_time_hours,
         urgency=complaint.severity,
         technician_type=rec.technician_required,
-        date=complaint.created_at.strftime("%Y-%m-%d") if complaint.created_at else "Today",
-        technician_notes=f"Reporter: {complaint.reporter_name} | Phone: {complaint.reporter_phone or 'N/A'} | Dept: {complaint.reporter_dept} | Work Order: WO-{complaint.id:04d}",
-        status="Triage Pending",
+        date=now_str[:10],
+        technician_notes=f"Tracking: {complaint.tracking_code} | Reporter: {complaint.reporter_name} | Phone: {complaint.reporter_phone or 'N/A'}",
+        status="UNDER_REVIEW",
     )
     db.add(kb_record)
 
-    await db.commit()
-    await db.refresh(kb_record)
+    # Create Notifications
+    admin_notif = Notification(
+        title=f"New Complaint #{complaint.tracking_code}",
+        message=f"{complaint.reporter_name} reported {complaint.equipment_type} issue at {complaint.location}.",
+        complaint_id=complaint.id,
+        recipient_phone=None,
+        created_at=now_str,
+    )
+    db.add(admin_notif)
 
-    # Update vector store search index with new complaint entry so global search & evidence explorer find it immediately
+    if complaint.reporter_phone:
+        user_notif = Notification(
+            title=f"Complaint #{complaint.tracking_code} Received",
+            message=f"Your ticket for {complaint.equipment_type} is now under review by facility operations.",
+            complaint_id=complaint.id,
+            recipient_phone=complaint.reporter_phone,
+            created_at=now_str,
+        )
+        db.add(user_notif)
+
+    await db.commit()
+    await db.refresh(complaint)
+
+    # Vector store index update
     with contextlib.suppress(Exception):
         from backend.app.rag.embeddings import embedding_service
         from backend.app.rag.vector_store import vector_store
 
-        text_to_embed = f"{complaint.equipment_type} at {complaint.location}: {complaint.raw_complaint} - Cause: {diagnosis.primary_cause} - Fix: {rec.action} - Reporter: {complaint.reporter_name} ({complaint.reporter_phone})"
+        text_to_embed = f"{complaint.equipment_type} at {complaint.location}: {complaint.raw_complaint} - Cause: {diagnosis.primary_cause} - Fix: {rec.action}"
         emb = await embedding_service.get_embedding(text_to_embed)
         vector_store.add_document(
             doc_id=kb_record.id,
@@ -176,20 +247,34 @@ async def create_and_analyze_complaint(
                 "repair_time": rec.repair_time_hours,
                 "urgency": complaint.severity,
                 "technician_type": rec.technician_required,
-                "date": complaint.created_at.strftime("%Y-%m-%d") if complaint.created_at else "Today",
-                "technician_notes": f"Reporter: {complaint.reporter_name} ({complaint.reporter_phone or 'N/A'}) - Dept: {complaint.reporter_dept}",
-                "reporter_name": complaint.reporter_name,
-                "reporter_phone": complaint.reporter_phone,
-                "status": "Triage Pending",
+                "date": now_str[:10],
+                "status": "UNDER_REVIEW",
                 "complaint_id": complaint.id,
+                "tracking_code": complaint.tracking_code,
             },
         )
         vector_store.save()
+
+    # Real-time WebSocket Broadcast
+    await event_bus.broadcast_event(
+        "complaint.created",
+        {
+            "complaint_id": complaint.id,
+            "tracking_code": complaint.tracking_code,
+            "title": complaint.title,
+            "equipment_type": complaint.equipment_type,
+            "location": complaint.location,
+            "severity": complaint.severity,
+            "status": complaint.status,
+            "reporter_phone": complaint.reporter_phone,
+        },
+    )
 
     similar_cases = [SimilarCaseItem(**c) for c in similar_cases_raw]
 
     return DecisionReportResponse(
         complaint_id=complaint.id,
+        tracking_code=complaint.tracking_code,
         raw_complaint=complaint.raw_complaint,
         status=complaint.status,
         created_at=complaint.created_at,
@@ -212,17 +297,403 @@ async def list_complaints(
     equipment_type: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> list[ComplaintResponse]:
-    """Retrieve list of submitted complaints with optional filters."""
-    stmt = select(Complaint).order_by(desc(Complaint.created_at))
+    """Retrieve list of submitted complaints with full details and timeline events."""
+    stmt = (
+        select(Complaint)
+        .options(selectinload(Complaint.timeline_events))
+        .order_by(desc(Complaint.id))
+        .offset(skip)
+        .limit(limit)
+    )
     if status:
         stmt = stmt.where(Complaint.status == status)
     if equipment_type:
         stmt = stmt.where(Complaint.equipment_type == equipment_type)
 
-    stmt = stmt.offset(skip).limit(limit)
     result = await db.execute(stmt)
     complaints = result.scalars().all()
-    return complaints
+    return list(complaints)
+
+
+@router.get("/track/{tracking_code_or_id}", response_model=ComplaintTrackResponse)
+async def track_complaint(
+    tracking_code_or_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> ComplaintTrackResponse:
+    """Public lookup endpoint for complainants to track live status and timeline events."""
+    tracking_clean = tracking_code_or_id.strip()
+
+    stmt = select(Complaint).options(selectinload(Complaint.timeline_events))
+    if tracking_clean.upper().startswith("FM-"):
+        stmt = stmt.where(func.upper(Complaint.tracking_code) == tracking_clean.upper())
+    elif tracking_clean.isdigit():
+        cid = int(tracking_clean)
+        stmt = stmt.where((Complaint.id == cid) | (Complaint.tracking_code == f"FM-{cid:04d}"))
+    else:
+        stmt = stmt.where(func.upper(Complaint.tracking_code) == tracking_clean.upper())
+
+    result = await db.execute(stmt)
+    complaint = result.scalar_one_or_none()
+
+    if not complaint:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No complaint found matching tracking code '{tracking_code_or_id}'. Please check the format (e.g., FM-0001).",
+        )
+
+    timeline_sorted = sorted(complaint.timeline_events, key=lambda x: x.id)
+    timeline_items = [
+        TimelineEventResponse(
+            id=t.id,
+            complaint_id=t.complaint_id,
+            event_type=t.event_type,
+            actor_name=t.actor_name,
+            actor_role=t.actor_role,
+            message=t.message,
+            created_at=t.created_at,
+        )
+        for t in timeline_sorted
+    ]
+
+    return ComplaintTrackResponse(
+        id=complaint.id,
+        tracking_code=complaint.tracking_code or f"FM-{complaint.id:04d}",
+        title=complaint.title,
+        raw_complaint=complaint.raw_complaint,
+        equipment_type=complaint.equipment_type,
+        equipment_id=complaint.equipment_id,
+        location=complaint.location,
+        building=complaint.building,
+        floor=complaint.floor,
+        room=complaint.room,
+        severity=complaint.severity,
+        status=complaint.status,
+        work_order_status=complaint.work_order_status,
+        reporter_name=complaint.reporter_name,
+        reporter_dept=complaint.reporter_dept,
+        noticed_at=complaint.noticed_at,
+        created_at=complaint.created_at,
+        resolved_at=complaint.resolved_at,
+        public_resolution_notes=complaint.public_resolution_notes,
+        assigned_technician_name=complaint.assigned_technician_name,
+        timeline_events=timeline_items,
+    )
+
+
+@router.get("/user/my", response_model=list[ComplaintTrackResponse])
+async def get_user_complaints(
+    phone: str = Query(..., min_length=3, description="User phone number"),
+    db: AsyncSession = Depends(get_db),
+) -> list[ComplaintTrackResponse]:
+    """Retrieve all complaints submitted by a specific user phone number."""
+    phone_clean = phone.strip()
+    stmt = (
+        select(Complaint)
+        .options(selectinload(Complaint.timeline_events))
+        .where(Complaint.reporter_phone == phone_clean)
+        .order_by(desc(Complaint.id))
+    )
+    result = await db.execute(stmt)
+    complaints = result.scalars().all()
+
+    output = []
+    for c in complaints:
+        timeline_sorted = sorted(c.timeline_events, key=lambda x: x.id)
+        output.append(
+            ComplaintTrackResponse(
+                id=c.id,
+                tracking_code=c.tracking_code or f"FM-{c.id:04d}",
+                title=c.title,
+                raw_complaint=c.raw_complaint,
+                equipment_type=c.equipment_type,
+                equipment_id=c.equipment_id,
+                location=c.location,
+                building=c.building,
+                floor=c.floor,
+                room=c.room,
+                severity=c.severity,
+                status=c.status,
+                work_order_status=c.work_order_status,
+                reporter_name=c.reporter_name,
+                reporter_dept=c.reporter_dept,
+                noticed_at=c.noticed_at,
+                created_at=c.created_at,
+                resolved_at=c.resolved_at,
+                public_resolution_notes=c.public_resolution_notes,
+                assigned_technician_name=c.assigned_technician_name,
+                timeline_events=[
+                    TimelineEventResponse(
+                        id=t.id,
+                        complaint_id=t.complaint_id,
+                        event_type=t.event_type,
+                        actor_name=t.actor_name,
+                        actor_role=t.actor_role,
+                        message=t.message,
+                        created_at=t.created_at,
+                    )
+                    for t in timeline_sorted
+                ],
+            )
+        )
+    return output
+
+
+@router.get("/{complaint_id}/timeline", response_model=list[TimelineEventResponse])
+async def get_complaint_timeline(
+    complaint_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> list[TimelineEventResponse]:
+    """Fetch chronological event timeline for a complaint."""
+    stmt = (
+        select(ComplaintTimelineEvent)
+        .where(ComplaintTimelineEvent.complaint_id == complaint_id)
+        .order_by(ComplaintTimelineEvent.id.asc())
+    )
+    res = await db.execute(stmt)
+    events = res.scalars().all()
+    return list(events)
+
+
+@router.post("/{complaint_id}/resolve")
+async def resolve_complaint_endpoint(
+    complaint_id: int,
+    payload: ComplaintResolveRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Resolve a complaint with mandatory resolution notes, update work order costs, log timeline event, and notify complainant."""
+    now_str = _format_now()
+
+    stmt = select(Complaint).where(Complaint.id == complaint_id)
+    res = await db.execute(stmt)
+    complaint = res.scalar_one_or_none()
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+
+    labor_cost = payload.labor_cost or 0
+    parts_cost = payload.parts_cost or 0
+    other_cost = payload.other_cost or 0
+    total_cost = labor_cost + parts_cost + other_cost
+
+    complaint.status = "RESOLVED"
+    complaint.work_order_status = "Completed"
+    complaint.public_resolution_notes = payload.resolution_notes
+    complaint.internal_admin_notes = payload.internal_admin_notes
+    complaint.assigned_technician_id = payload.assigned_technician_id
+    complaint.assigned_technician_name = payload.assigned_technician_name
+    complaint.labor_cost = labor_cost
+    complaint.parts_cost = parts_cost
+    complaint.other_cost = other_cost
+    complaint.total_actual_cost = total_cost
+    complaint.resolved_at = now_str
+    complaint.updated_at = now_str
+
+    # Update technician record if applicable
+    if payload.assigned_technician_id:
+        tech_stmt = select(TechnicianStaff).where(TechnicianStaff.id == payload.assigned_technician_id)
+        tech_res = await db.execute(tech_stmt)
+        tech = tech_res.scalar_one_or_none()
+        if tech:
+            tech.total_jobs_completed += 1
+            tech.total_earnings += labor_cost
+            tech.status = "Available"
+
+    # Add timeline event
+    evt_resolved = ComplaintTimelineEvent(
+        complaint_id=complaint.id,
+        event_type="RESOLVED",
+        actor_name=payload.assigned_technician_name or "Facility Operations",
+        actor_role="Admin",
+        message=f"Resolved: {payload.resolution_notes}",
+        created_at=now_str,
+    )
+    db.add(evt_resolved)
+
+    # Sync Knowledge Base record
+    mr_stmt = select(MaintenanceRecord).where(
+        (MaintenanceRecord.equipment_id == f"WO-{complaint_id:04d}")
+        | (MaintenanceRecord.complaint == complaint.raw_complaint)
+        | (MaintenanceRecord.id == complaint_id)
+    )
+    mr_res = await db.execute(mr_stmt)
+    linked_rec = mr_res.scalars().first()
+    if linked_rec:
+        linked_rec.status = "RESOLVED"
+        linked_rec.technician_notes = f"Resolution: {payload.resolution_notes} | Cost: ₹{total_cost}"
+
+    # Notification to user
+    if complaint.reporter_phone:
+        user_notif = Notification(
+            title=f"Complaint #{complaint.tracking_code or complaint.id} Resolved",
+            message=f"Work completed: {payload.resolution_notes}",
+            complaint_id=complaint.id,
+            recipient_phone=complaint.reporter_phone,
+            created_at=now_str,
+        )
+        db.add(user_notif)
+
+    await db.commit()
+
+    # Broadcast event
+    await event_bus.broadcast_event(
+        "complaint.resolved",
+        {
+            "complaint_id": complaint.id,
+            "tracking_code": complaint.tracking_code,
+            "status": "RESOLVED",
+            "resolution_notes": payload.resolution_notes,
+            "reporter_phone": complaint.reporter_phone,
+        },
+    )
+
+    return {
+        "success": True,
+        "complaint_id": complaint.id,
+        "tracking_code": complaint.tracking_code,
+        "status": "RESOLVED",
+        "total_actual_cost": total_cost,
+        "message": f"Complaint #{complaint.tracking_code or complaint.id} resolved successfully.",
+    }
+
+
+@router.post("/{complaint_id}/reopen")
+async def reopen_complaint_endpoint(
+    complaint_id: int,
+    payload: ComplaintReopenRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Reopen an unresolved or recurring complaint, log timeline event, and notify operations team."""
+    now_str = _format_now()
+
+    stmt = select(Complaint).where(Complaint.id == complaint_id)
+    res = await db.execute(stmt)
+    complaint = res.scalar_one_or_none()
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+
+    complaint.status = "REOPENED"
+    complaint.work_order_status = "Reopened for Inspection"
+    complaint.updated_at = now_str
+
+    # Add timeline event
+    evt_reopened = ComplaintTimelineEvent(
+        complaint_id=complaint.id,
+        event_type="REOPENED",
+        actor_name=payload.actor_name or "Complainant",
+        actor_role="User",
+        message=f"Reopened by user: {payload.reason}",
+        created_at=now_str,
+    )
+    db.add(evt_reopened)
+
+    # Add admin notification
+    admin_notif = Notification(
+        title=f"Complaint #{complaint.tracking_code or complaint.id} Reopened",
+        message=f"Reason: {payload.reason}",
+        complaint_id=complaint.id,
+        recipient_phone=None,
+        created_at=now_str,
+    )
+    db.add(admin_notif)
+
+    await db.commit()
+
+    # Broadcast event
+    await event_bus.broadcast_event(
+        "complaint.reopened",
+        {
+            "complaint_id": complaint.id,
+            "tracking_code": complaint.tracking_code,
+            "status": "REOPENED",
+            "reason": payload.reason,
+            "reporter_phone": complaint.reporter_phone,
+        },
+    )
+
+    return {
+        "success": True,
+        "complaint_id": complaint.id,
+        "tracking_code": complaint.tracking_code,
+        "status": "REOPENED",
+        "message": f"Complaint #{complaint.tracking_code or complaint.id} reopened for further inspection.",
+    }
+
+
+@router.patch("/{complaint_id}/status")
+@router.put("/{complaint_id}/status")
+async def update_complaint_status(
+    complaint_id: int,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update status, technician assignment, or work order progress with timeline logging."""
+    now_str = _format_now()
+
+    stmt = select(Complaint).where(Complaint.id == complaint_id)
+    res = await db.execute(stmt)
+    complaint = res.scalar_one_or_none()
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+
+    old_status = complaint.status
+    if "status" in payload:
+        complaint.status = str(payload["status"]).upper()
+    if "work_order_status" in payload:
+        complaint.work_order_status = str(payload["work_order_status"])
+    if "assigned_technician_id" in payload:
+        complaint.assigned_technician_id = payload["assigned_technician_id"]
+    if "assigned_technician_name" in payload:
+        complaint.assigned_technician_name = payload["assigned_technician_name"]
+
+    complaint.updated_at = now_str
+
+    # Create timeline event for stage changes
+    event_type = complaint.status if complaint.status in ["ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"] else "STATUS_UPDATED"
+    msg = f"Status changed from {old_status} to {complaint.status}."
+    if complaint.assigned_technician_name:
+        msg += f" Technician: {complaint.assigned_technician_name}."
+
+    evt = ComplaintTimelineEvent(
+        complaint_id=complaint.id,
+        event_type=event_type,
+        actor_name="Facility Administrator",
+        actor_role="Admin",
+        message=msg,
+        created_at=now_str,
+    )
+    db.add(evt)
+
+    # Sync Knowledge Base
+    mr_stmt = select(MaintenanceRecord).where(
+        (MaintenanceRecord.equipment_id == f"WO-{complaint_id:04d}")
+        | (MaintenanceRecord.complaint == complaint.raw_complaint)
+        | (MaintenanceRecord.id == complaint_id)
+    )
+    mr_res = await db.execute(mr_stmt)
+    linked_rec = mr_res.scalars().first()
+    if linked_rec:
+        linked_rec.status = complaint.status
+
+    await db.commit()
+
+    # Broadcast event
+    await event_bus.broadcast_event(
+        "complaint.status_changed",
+        {
+            "complaint_id": complaint.id,
+            "tracking_code": complaint.tracking_code,
+            "status": complaint.status,
+            "work_order_status": complaint.work_order_status,
+            "reporter_phone": complaint.reporter_phone,
+        },
+    )
+
+    return {
+        "success": True,
+        "complaint_id": complaint_id,
+        "status": complaint.status,
+        "work_order_status": complaint.work_order_status,
+        "tracking_code": complaint.tracking_code,
+    }
 
 
 @router.get("/{complaint_id}/decision", response_model=DecisionReportResponse)
@@ -230,7 +701,7 @@ async def get_complaint_decision(
     complaint_id: int,
     db: AsyncSession = Depends(get_db),
 ) -> DecisionReportResponse:
-    """Retrieve full decision report and audit logs for an existing complaint."""
+    """Retrieve full decision report, diagnosis, repair steps, and agent audit logs."""
     stmt = select(Complaint).where(Complaint.id == complaint_id)
     result = await db.execute(stmt)
     complaint = result.scalar_one_or_none()
@@ -238,22 +709,18 @@ async def get_complaint_decision(
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
 
-    # Fetch diagnosis
     diag_stmt = select(Diagnosis).where(Diagnosis.complaint_id == complaint_id)
     diag_res = await db.execute(diag_stmt)
     diag = diag_res.scalar_one_or_none()
 
-    # Fetch recommendation
     rec_stmt = select(Recommendation).where(Recommendation.complaint_id == complaint_id)
     rec_res = await db.execute(rec_stmt)
     rec = rec_res.scalar_one_or_none()
 
-    # Fetch agent runs
     runs_stmt = select(AgentRun).where(AgentRun.complaint_id == complaint_id)
     runs_res = await db.execute(runs_stmt)
     runs = runs_res.scalars().all()
 
-    # Fetch feedback
     fb_stmt = select(TechnicianFeedback).where(TechnicianFeedback.complaint_id == complaint_id)
     fb_res = await db.execute(fb_stmt)
     feedback = fb_res.scalar_one_or_none()
@@ -315,7 +782,6 @@ async def get_complaint_decision(
         for r in runs
     ]
 
-    # Retrieve similar cases
     from backend.app.rag.retriever import retriever
 
     similar_raw = await retriever.retrieve_similar_cases(
@@ -352,177 +818,6 @@ async def get_complaint_decision(
     )
 
 
-@router.delete("")
-@router.delete("/")
-@router.post("/clear")
-@router.post("/hard-reset")
-@router.delete("/hard-reset")
-async def clear_all_complaints(
-    db: AsyncSession = Depends(get_db),
-):
-    """Clear all active complaints, work orders, and diagnoses to reset to a clean zero state with internal counter at 1."""
-    from backend.app.models.maintenance import (
-        AgentRun,
-        Diagnosis,
-        Recommendation,
-        TechnicianFeedback,
-    )
-    from sqlalchemy import delete, text
-
-    await db.execute(delete(TechnicianFeedback))
-    await db.execute(delete(AgentRun))
-    await db.execute(delete(Recommendation))
-    await db.execute(delete(Diagnosis))
-    await db.execute(delete(Complaint))
-
-    # Reset SQLite autoincrement sequence so next inserted complaint starts at ID #1
-    with contextlib.suppress(Exception):
-        await db.execute(
-            text(
-                "DELETE FROM sqlite_sequence WHERE name IN ('complaints', 'diagnoses', 'recommendations', 'agent_runs', 'technician_feedback')"
-            )
-        )
-
-    await db.commit()
-
-    # Clear custom added documents from vector store index
-    with contextlib.suppress(Exception):
-        from backend.app.rag.vector_store import vector_store
-
-        vector_store.documents = [d for d in vector_store.documents if d["id"] < 10000]
-        vector_store.save()
-
-    return {
-        "success": True,
-        "message": "All complaints, work orders, and cached metrics cleared. Serial counter reset to #1.",
-    }
-
-
-@router.delete("/{complaint_id}")
-async def delete_complaint(
-    complaint_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete a complaint and all associated child work order and diagnosis records."""
-    from backend.app.models.maintenance import (
-        AgentRun,
-        Diagnosis,
-        Recommendation,
-        TechnicianFeedback,
-    )
-    from sqlalchemy import delete
-
-    stmt = select(Complaint).where(Complaint.id == complaint_id)
-    res = await db.execute(stmt)
-    complaint = res.scalar_one_or_none()
-    if not complaint:
-        raise HTTPException(status_code=404, detail="Complaint not found")
-
-    # Safely delete dependent records first
-    await db.execute(delete(TechnicianFeedback).where(TechnicianFeedback.complaint_id == complaint_id))
-    await db.execute(delete(AgentRun).where(AgentRun.complaint_id == complaint_id))
-    await db.execute(delete(Recommendation).where(Recommendation.complaint_id == complaint_id))
-    await db.execute(delete(Diagnosis).where(Diagnosis.complaint_id == complaint_id))
-    await db.delete(complaint)
-    await db.commit()
-
-    # Also remove from vector store if present
-    with contextlib.suppress(Exception):
-        from backend.app.rag.vector_store import vector_store
-
-        vector_store.documents = [d for d in vector_store.documents if d["id"] != 10000 + complaint_id]
-        vector_store.save()
-
-    return {"success": True, "message": f"Complaint #{complaint_id} removed from active register."}
-
-
-@router.post("/batch-delete")
-async def batch_delete_complaints(
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete selected list of complaints and their associated work order records."""
-    from backend.app.models.maintenance import (
-        AgentRun,
-        Diagnosis,
-        Recommendation,
-        TechnicianFeedback,
-    )
-    from sqlalchemy import delete
-
-    ids = payload.get("complaint_ids", [])
-    if not ids:
-        return {"success": True, "deleted_count": 0, "message": "No complaint IDs provided"}
-
-    id_list = [int(i) for i in ids]
-    await db.execute(delete(TechnicianFeedback).where(TechnicianFeedback.complaint_id.in_(id_list)))
-    await db.execute(delete(AgentRun).where(AgentRun.complaint_id.in_(id_list)))
-    await db.execute(delete(Recommendation).where(Recommendation.complaint_id.in_(id_list)))
-    await db.execute(delete(Diagnosis).where(Diagnosis.complaint_id.in_(id_list)))
-    await db.execute(delete(Complaint).where(Complaint.id.in_(id_list)))
-    await db.commit()
-
-    with contextlib.suppress(Exception):
-        from backend.app.rag.vector_store import vector_store
-
-        vector_store.documents = [d for d in vector_store.documents if d["id"] not in [10000 + cid for cid in id_list]]
-        vector_store.save()
-
-    return {
-        "success": True,
-        "deleted_count": len(id_list),
-        "message": f"Successfully deleted {len(id_list)} selected complaint(s).",
-    }
-
-
-@router.patch("/{complaint_id}/status")
-async def update_complaint_status(
-    complaint_id: int,
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-):
-    """Update status or work order progress of a complaint and synchronize Knowledge Base."""
-    from backend.app.models.maintenance import MaintenanceRecord
-    from backend.app.rag.vector_store import vector_store
-
-    stmt = select(Complaint).where(Complaint.id == complaint_id)
-    res = await db.execute(stmt)
-    complaint = res.scalar_one_or_none()
-    if not complaint:
-        raise HTTPException(status_code=404, detail="Complaint not found")
-
-    if "status" in payload:
-        complaint.status = str(payload["status"])
-    if "work_order_status" in payload:
-        complaint.work_order_status = str(payload["work_order_status"])
-
-    # Bidirectional Sync: Update corresponding Knowledge Base maintenance record
-    mr_stmt = select(MaintenanceRecord).where(
-        (MaintenanceRecord.equipment_id == f"WO-{complaint_id:04d}")
-        | (MaintenanceRecord.technician_notes.like(f"%WO-{complaint_id:04d}%"))
-        | (MaintenanceRecord.complaint == complaint.raw_complaint)
-        | (MaintenanceRecord.id == complaint_id)
-    )
-    mr_res = await db.execute(mr_stmt)
-    linked_rec = mr_res.scalars().first()
-    if linked_rec:
-        linked_rec.status = complaint.status
-        for doc in vector_store.documents:
-            if doc["id"] == linked_rec.id:
-                doc["metadata"]["status"] = complaint.status
-                break
-        vector_store.save()
-
-    await db.commit()
-    return {
-        "success": True,
-        "complaint_id": complaint_id,
-        "status": complaint.status,
-        "work_order_status": complaint.work_order_status,
-        "knowledge_base_synced": linked_rec is not None,
-    }
-
-
 @router.post("/{complaint_id}/rating")
 async def rate_diagnosis_accuracy(
     complaint_id: int,
@@ -547,15 +842,13 @@ async def rate_diagnosis_accuracy(
     }
 
 
-@router.post("/{complaint_id}/resolve")
-async def resolve_complaint_and_settle(
+@router.delete("/{complaint_id}")
+async def delete_complaint(
     complaint_id: int,
-    payload: dict,
     db: AsyncSession = Depends(get_db),
 ):
-    """Resolve a work order, assign specific technician worker, and settle labor + parts costs across all views."""
-    from backend.app.models.maintenance import MaintenanceRecord, TechnicianStaff
-    from backend.app.rag.vector_store import vector_store
+    """Delete a complaint and all associated child work order and diagnosis records."""
+    from sqlalchemy import delete
 
     stmt = select(Complaint).where(Complaint.id == complaint_id)
     res = await db.execute(stmt)
@@ -563,132 +856,75 @@ async def resolve_complaint_and_settle(
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
 
-    tech_id = payload.get("assigned_technician_id")
-    tech_name = payload.get("assigned_technician_name")
-    labor_cost = int(payload.get("labor_cost", 0))
-    parts_cost = int(payload.get("parts_cost", 0))
-    total_cost = labor_cost + parts_cost
+    await db.execute(delete(ComplaintTimelineEvent).where(ComplaintTimelineEvent.complaint_id == complaint_id))
+    await db.execute(delete(Notification).where(Notification.complaint_id == complaint_id))
+    await db.execute(delete(TechnicianFeedback).where(TechnicianFeedback.complaint_id == complaint_id))
+    await db.execute(delete(AgentRun).where(AgentRun.complaint_id == complaint_id))
+    await db.execute(delete(Recommendation).where(Recommendation.complaint_id == complaint_id))
+    await db.execute(delete(Diagnosis).where(Diagnosis.complaint_id == complaint_id))
+    await db.delete(complaint)
+    await db.commit()
 
-    complaint.status = "Resolved"
-    complaint.work_order_status = "Completed"
-    complaint.assigned_technician_id = tech_id
-    complaint.assigned_technician_name = tech_name
-    complaint.labor_cost = labor_cost
-    complaint.parts_cost = parts_cost
-    complaint.total_actual_cost = total_cost
+    return {"success": True, "message": f"Complaint #{complaint_id} removed from active register."}
 
-    # If technician id provided, update technician's completed jobs and total earnings
-    if tech_id:
-        tech_stmt = select(TechnicianStaff).where(TechnicianStaff.id == tech_id)
-        tech_res = await db.execute(tech_stmt)
-        tech = tech_res.scalar_one_or_none()
-        if tech:
-            tech.total_jobs_completed += 1
-            tech.total_earnings += labor_cost
-            tech.status = "Available"
 
-    # Bidirectional Sync: Mark linked MaintenanceRecord in Knowledge Base as Resolved
-    mr_stmt = select(MaintenanceRecord).where(
-        (MaintenanceRecord.equipment_id == f"WO-{complaint_id:04d}")
-        | (MaintenanceRecord.technician_notes.like(f"%WO-{complaint_id:04d}%"))
-        | (MaintenanceRecord.complaint == complaint.raw_complaint)
-        | (MaintenanceRecord.id == complaint_id)
-    )
-    mr_res = await db.execute(mr_stmt)
-    linked_rec = mr_res.scalars().first()
-    if linked_rec:
-        linked_rec.status = "Resolved"
-        if tech_name:
-            linked_rec.technician_notes = (
-                f"Resolved by {tech_name} (₹{labor_cost} labor) | {linked_rec.technician_notes or ''}"
+@router.post("/batch-delete")
+async def batch_delete_complaints(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete selected list of complaints and their associated work order records."""
+    from sqlalchemy import delete
+
+    ids = payload.get("complaint_ids", [])
+    if not ids:
+        return {"success": True, "deleted_count": 0, "message": "No complaint IDs provided"}
+
+    id_list = [int(i) for i in ids]
+    await db.execute(delete(ComplaintTimelineEvent).where(ComplaintTimelineEvent.complaint_id.in_(id_list)))
+    await db.execute(delete(Notification).where(Notification.complaint_id.in_(id_list)))
+    await db.execute(delete(TechnicianFeedback).where(TechnicianFeedback.complaint_id.in_(id_list)))
+    await db.execute(delete(AgentRun).where(AgentRun.complaint_id.in_(id_list)))
+    await db.execute(delete(Recommendation).where(Recommendation.complaint_id.in_(id_list)))
+    await db.execute(delete(Diagnosis).where(Diagnosis.complaint_id.in_(id_list)))
+    await db.execute(delete(Complaint).where(Complaint.id.in_(id_list)))
+    await db.commit()
+
+    return {
+        "success": True,
+        "deleted_count": len(id_list),
+        "message": f"Successfully deleted {len(id_list)} selected complaint(s).",
+    }
+
+
+@router.delete("")
+@router.delete("/")
+@router.post("/clear")
+@router.post("/hard-reset")
+@router.delete("/hard-reset")
+async def clear_all_complaints(
+    db: AsyncSession = Depends(get_db),
+):
+    """Clear all active complaints, work orders, timeline events, and reset sequence counter."""
+    from sqlalchemy import delete, text
+
+    await db.execute(delete(Notification))
+    await db.execute(delete(ComplaintTimelineEvent))
+    await db.execute(delete(TechnicianFeedback))
+    await db.execute(delete(AgentRun))
+    await db.execute(delete(Recommendation))
+    await db.execute(delete(Diagnosis))
+    await db.execute(delete(Complaint))
+
+    with contextlib.suppress(Exception):
+        await db.execute(
+            text(
+                "DELETE FROM sqlite_sequence WHERE name IN ('complaints', 'diagnoses', 'recommendations', 'agent_runs', 'technician_feedback', 'complaint_timeline_events', 'notifications')"
             )
-        for doc in vector_store.documents:
-            if doc["id"] == linked_rec.id:
-                doc["metadata"]["status"] = "Resolved"
-                break
-        vector_store.save()
+        )
 
     await db.commit()
     return {
         "success": True,
-        "complaint_id": complaint_id,
-        "status": "Resolved",
-        "work_order_status": "Completed",
-        "assigned_technician": tech_name,
-        "labor_cost": labor_cost,
-        "parts_cost": parts_cost,
-        "total_actual_cost": total_cost,
-        "knowledge_base_synced": linked_rec is not None,
-        "message": f"Work order #{complaint_id} completed and synchronized with Knowledge Base. ₹{labor_cost} labor credited to {tech_name or 'Technician'}.",
+        "message": "All complaints, work orders, timeline events, and notifications cleared.",
     }
-
-
-
-@router.get("/search/dossier")
-async def search_complaint_dossiers(
-    q: str = Query(..., min_length=1, description="Search term for reporter name, phone, room, equipment, or symptoms"),
-    db: AsyncSession = Depends(get_db),
-):
-    """Search live complaints by reporter name, phone number, location, equipment, or keywords."""
-    from sqlalchemy.orm import selectinload
-
-    term = f"%{q.lower()}%"
-    stmt = (
-        select(Complaint)
-        .options(selectinload(Complaint.diagnosis), selectinload(Complaint.recommendation))
-        .where(
-            func.lower(func.coalesce(Complaint.reporter_name, "")).like(term)
-            | func.lower(func.coalesce(Complaint.reporter_phone, "")).like(term)
-            | func.lower(func.coalesce(Complaint.location, "")).like(term)
-            | func.lower(func.coalesce(Complaint.reporter_dept, "")).like(term)
-            | func.lower(func.coalesce(Complaint.equipment_type, "")).like(term)
-            | func.lower(func.coalesce(Complaint.raw_complaint, "")).like(term)
-            | func.lower(func.coalesce(Complaint.symptoms, "")).like(term)
-            | func.lower(func.coalesce(Complaint.status, "")).like(term)
-            | func.lower(func.coalesce(Complaint.work_order_status, "")).like(term)
-        )
-        .order_by(desc(Complaint.id))
-        .limit(20)
-    )
-
-    res = await db.execute(stmt)
-    complaints = res.scalars().all()
-
-    results = []
-    for c in complaints:
-        primary_cause = c.diagnosis.primary_cause if c.diagnosis else "Analysis in progress"
-        action = c.recommendation.action if c.recommendation else "Diagnosis pending"
-        est_cost = (
-            int((c.recommendation.estimated_cost_min + c.recommendation.estimated_cost_max) / 2)
-            if c.recommendation
-            else 0
-        )
-        results.append(
-            {
-                "id": c.id,
-                "work_order_code": f"WO-{c.id:04d}",
-                "reporter_name": c.reporter_name or "Campus Member",
-                "reporter_phone": c.reporter_phone or "Not Provided",
-                "reporter_dept": c.reporter_dept or "General Facility",
-                "location": c.location or "Main Campus",
-                "equipment_type": c.equipment_type or "Facility Equipment",
-                "noticed_at": c.noticed_at or "Recent",
-                "created_at": c.created_at.strftime("%Y-%m-%d %H:%M") if hasattr(c.created_at, "strftime") else str(c.created_at),
-                "severity": c.severity or "Medium",
-                "status": c.status,
-                "work_order_status": c.work_order_status or "Triage Pending",
-                "raw_complaint": c.raw_complaint,
-                "symptoms": c.symptoms or c.raw_complaint,
-                "primary_cause": primary_cause,
-                "action_recommended": action,
-                "estimated_cost": est_cost,
-                "assigned_technician_name": c.assigned_technician_name,
-                "assigned_technician_id": c.assigned_technician_id,
-                "labor_cost": c.labor_cost or 0,
-                "parts_cost": c.parts_cost or 0,
-                "total_actual_cost": c.total_actual_cost or 0,
-            }
-        )
-
-    return {"query": q, "count": len(results), "results": results}
-

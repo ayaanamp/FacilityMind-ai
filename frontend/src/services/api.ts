@@ -1,10 +1,18 @@
 import {
+  AdminLoginResponse,
+  AdminUser,
+  AnalyticsResponse,
+  ApiKeyVerifyResponse,
   ComplaintDossierItem,
   DashboardMetrics,
   DecisionReport,
+  EquipmentItem,
   GeminiChatResponse,
   HealthResponse,
   MaintenanceRecordItem,
+  OrganizationProfile,
+  OrganizationPublic,
+  OrganizationStatus,
   SimilarCase,
   TechnicianFeedbackPayload,
   TechnicianStaff,
@@ -12,7 +20,19 @@ import {
 } from '../types';
 
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+function getApiBaseUrl(): string {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    const host = window.location.hostname || 'localhost';
+    const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${proto}//${host}:8000/api/v1`;
+  }
+  return 'http://localhost:8000/api/v1';
+}
+
+const API_BASE = getApiBaseUrl();
 
 export interface ApiLogEntry {
   timestamp: string;
@@ -33,8 +53,21 @@ export function getApiLogs(): ApiLogEntry[] {
 async function loggedFetch(url: string, options?: RequestInit): Promise<Response> {
   const start = performance.now();
   const method = options?.method || 'GET';
+  
+  // Attach Authorization token if available in storage and not explicitly overridden
+  const token = localStorage.getItem('fm_admin_token');
+  const headers = new Headers(options?.headers || {});
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const mergedOptions: RequestInit = {
+    ...options,
+    headers,
+  };
+
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(url, mergedOptions);
     const duration = Math.round(performance.now() - start);
     
     if (!res.ok) {
@@ -77,7 +110,15 @@ async function handleResponse<T>(res: Response): Promise<T> {
     let message = `API request failed with status ${res.status}`;
     try {
       const errJson = JSON.parse(errorText);
-      message = errJson.detail || message;
+      if (typeof errJson.detail === 'string') {
+        message = errJson.detail;
+      } else if (Array.isArray(errJson.detail)) {
+        message = errJson.detail
+          .map((d: any) => (typeof d === 'string' ? d : `${d.loc ? d.loc.slice(1).join('.') + ': ' : ''}${d.msg || JSON.stringify(d)}`))
+          .join('; ');
+      } else if (errJson.message) {
+        message = String(errJson.message);
+      }
     } catch {
       // Use fallback error message
     }
@@ -364,6 +405,7 @@ export async function resolveWorkOrder(
     assigned_technician_name?: string;
     labor_cost: number;
     parts_cost: number;
+    other_cost?: number;
     notes?: string;
   }
 ): Promise<{
@@ -405,4 +447,340 @@ export async function sendGeminiChatMessage(payload: {
   });
   return handleResponse<GeminiChatResponse>(res);
 }
+
+// ---------------------------------------------------------------------------
+// Dynamic Organization & First-Run Onboarding Endpoints
+// ---------------------------------------------------------------------------
+
+export async function fetchOrganizationStatus(): Promise<OrganizationStatus> {
+  const res = await loggedFetch(`${API_BASE}/organization/status`);
+  return handleResponse<OrganizationStatus>(res);
+}
+
+export async function setupOrganization(payload: {
+  admin_name: string;
+  admin_username: string;
+  admin_password: string;
+  admin_email?: string;
+  admin_role?: string;
+  admin_phone?: string;
+  organization_name: string;
+  org_type: string;
+  custom_org_type?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  primary_location?: string;
+  buildings_count?: number;
+  floors_count?: number;
+  approx_users_count?: number;
+  operating_hours?: string;
+  categories?: string[];
+  blocks?: string[];
+  gemini_api_key?: string;
+  load_demo_data?: boolean;
+}): Promise<OrganizationProfile> {
+  const res = await loggedFetch(`${API_BASE}/organization/setup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<OrganizationProfile>(res);
+}
+
+export async function fetchOrganizationSettings(): Promise<OrganizationProfile> {
+  const res = await loggedFetch(`${API_BASE}/organization/settings`);
+  return handleResponse<OrganizationProfile>(res);
+}
+
+export async function updateOrganizationSettings(
+  payload: Partial<OrganizationProfile> & {
+    admin_username?: string;
+    admin_password?: string;
+    gemini_api_key?: string;
+  }
+): Promise<{
+  success: boolean;
+  message: string;
+  organization: OrganizationProfile;
+}> {
+  const res = await loggedFetch(`${API_BASE}/organization/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<{ success: boolean; message: string; organization: OrganizationProfile }>(res);
+}
+
+export async function updateAdminCredentials(payload: {
+  admin_name: string;
+  admin_username: string;
+  admin_password?: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  admin_name: string;
+  admin_username: string;
+}> {
+  const res = await loggedFetch(`${API_BASE}/organization/admin-credentials`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<{
+    success: boolean;
+    message: string;
+    admin_name: string;
+    admin_username: string;
+  }>(res);
+}
+
+export async function fetchSuggestedCategories(orgType: string): Promise<string[]> {
+  const res = await loggedFetch(`${API_BASE}/organization/suggested-categories/${encodeURIComponent(orgType)}`);
+  const data = await handleResponse<any>(res);
+  return Array.isArray(data) ? data : (data.suggested_categories || []);
+}
+
+export async function verifyGeminiApiKey(apiKey: string): Promise<ApiKeyVerifyResponse> {
+  const res = await loggedFetch(`${API_BASE}/organization/verify-key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+  return handleResponse<ApiKeyVerifyResponse>(res);
+}
+
+export async function loadDemoWorkspace(): Promise<{
+  success: boolean;
+  message: string;
+  organization: OrganizationProfile;
+  stats: any;
+}> {
+  const res = await loggedFetch(`${API_BASE}/organization/demo-seed`, {
+    method: 'POST',
+  });
+  return handleResponse<{
+    success: boolean;
+    message: string;
+    organization: OrganizationProfile;
+    stats: any;
+  }>(res);
+}
+
+export async function resetWorkspaceData(confirmation: string = 'CONFIRM_RESET'): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  const res = await loggedFetch(`${API_BASE}/organization/reset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmation }),
+  });
+  return handleResponse<{ success: boolean; message: string }>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Equipment Inventory Management Endpoints
+// ---------------------------------------------------------------------------
+
+export async function fetchEquipmentList(params?: {
+  equipment_type?: string;
+  location?: string;
+  status?: string;
+}): Promise<EquipmentItem[]> {
+  const urlParams = new URLSearchParams();
+  if (params?.equipment_type) urlParams.append('equipment_type', params.equipment_type);
+  if (params?.location) urlParams.append('location', params.location);
+  if (params?.status) urlParams.append('status', params.status);
+
+  const res = await loggedFetch(`${API_BASE}/organization/equipment?${urlParams.toString()}`);
+  return handleResponse<EquipmentItem[]>(res);
+}
+
+export async function createEquipment(payload: {
+  equipment_name: string;
+  equipment_type: string;
+  equipment_id: string;
+  location: string;
+  building?: string;
+  floor?: string;
+  department?: string;
+  manufacturer?: string;
+  model?: string;
+  serial_number?: string;
+  installation_date?: string;
+  status?: string;
+  criticality?: string;
+}): Promise<EquipmentItem> {
+  const res = await loggedFetch(`${API_BASE}/organization/equipment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<EquipmentItem>(res);
+}
+
+export async function deleteEquipment(equipmentId: number): Promise<{ success: boolean; message: string }> {
+  const res = await loggedFetch(`${API_BASE}/organization/equipment/${equipmentId}`, {
+    method: 'DELETE',
+  });
+  return handleResponse<{ success: boolean; message: string }>(res);
+}
+
+export async function importEquipmentCsv(csvContent: string): Promise<{
+  success: boolean;
+  imported_count: number;
+  message: string;
+}> {
+  const res = await loggedFetch(`${API_BASE}/organization/equipment/import-csv`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csv_content: csvContent }),
+  });
+  return handleResponse<{ success: boolean; imported_count: number; message: string }>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Real-Time Complaint Tracking, Timelines, & Notifications Endpoints
+// ---------------------------------------------------------------------------
+
+export async function trackComplaint(trackingCodeOrId: string): Promise<any> {
+  const res = await loggedFetch(`${API_BASE}/complaints/track/${encodeURIComponent(trackingCodeOrId)}`);
+  return handleResponse<any>(res);
+}
+
+export async function fetchUserComplaints(phone: string): Promise<any[]> {
+  const res = await loggedFetch(`${API_BASE}/complaints/user/my?phone=${encodeURIComponent(phone)}`);
+  return handleResponse<any[]>(res);
+}
+
+export async function fetchComplaintTimeline(complaintId: number): Promise<any[]> {
+  const res = await loggedFetch(`${API_BASE}/complaints/${complaintId}/timeline`);
+  return handleResponse<any[]>(res);
+}
+
+export async function resolveComplaintWithNotes(
+  complaintId: number,
+  payload: {
+    resolution_notes: string;
+    assigned_technician_id?: number | null;
+    assigned_technician_name?: string | null;
+    labor_cost?: number;
+    parts_cost?: number;
+    internal_admin_notes?: string | null;
+  }
+): Promise<{ success: boolean; complaint_id: number; status: string; message: string }> {
+  const res = await loggedFetch(`${API_BASE}/complaints/${complaintId}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<{ success: boolean; complaint_id: number; status: string; message: string }>(res);
+}
+
+export async function reopenComplaint(
+  complaintId: number,
+  payload: { reason: string; actor_name?: string }
+): Promise<{ success: boolean; complaint_id: number; status: string; message: string }> {
+  const res = await loggedFetch(`${API_BASE}/complaints/${complaintId}/reopen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<{ success: boolean; complaint_id: number; status: string; message: string }>(res);
+}
+
+export async function fetchNotifications(phone?: string): Promise<any[]> {
+  const url = phone
+    ? `${API_BASE}/notifications?phone=${encodeURIComponent(phone)}`
+    : `${API_BASE}/notifications`;
+  const res = await loggedFetch(url);
+  return handleResponse<any[]>(res);
+}
+
+export async function markNotificationRead(notificationId: number): Promise<{ success: boolean }> {
+  const res = await loggedFetch(`${API_BASE}/notifications/${notificationId}/read`, {
+    method: 'POST',
+  });
+  return handleResponse<{ success: boolean }>(res);
+}
+
+export async function markAllNotificationsRead(phone?: string): Promise<{ success: boolean }> {
+  const url = phone
+    ? `${API_BASE}/notifications/mark-all-read?phone=${encodeURIComponent(phone)}`
+    : `${API_BASE}/notifications/mark-all-read`;
+  const res = await loggedFetch(url, { method: 'POST' });
+  return handleResponse<{ success: boolean }>(res);
+}
+
+export async function sendUserChatMessage(payload: {
+  message: string;
+  history?: Array<{ role: string; content: string }>;
+  user_phone?: string;
+}): Promise<GeminiChatResponse> {
+  const res = await loggedFetch(`${API_BASE}/chat/user`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<GeminiChatResponse>(res);
+}
+
+export async function sendAdminChatMessage(payload: {
+  message: string;
+  history?: Array<{ role: string; content: string }>;
+}): Promise<GeminiChatResponse> {
+  const res = await loggedFetch(`${API_BASE}/chat/admin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<GeminiChatResponse>(res);
+}
+
+export async function fetchPublicOrganization(): Promise<OrganizationPublic> {
+  const res = await loggedFetch(`${API_BASE}/organization/public`);
+  return handleResponse<OrganizationPublic>(res);
+}
+
+export async function loginAdmin(payload: { username: string; password: string }): Promise<AdminLoginResponse> {
+  const res = await loggedFetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await handleResponse<AdminLoginResponse>(res);
+  if (data.access_token) {
+    localStorage.setItem('fm_admin_token', data.access_token);
+    localStorage.setItem('fm_admin_user', JSON.stringify(data.user));
+  }
+  return data;
+}
+
+export async function fetchCurrentAdmin(): Promise<AdminUser> {
+  const res = await loggedFetch(`${API_BASE}/auth/me`);
+  return handleResponse<AdminUser>(res);
+}
+
+export async function logoutAdmin(): Promise<{ success: boolean }> {
+  try {
+    const res = await loggedFetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+    });
+    localStorage.removeItem('fm_admin_token');
+    localStorage.removeItem('fm_admin_user');
+    return handleResponse<{ success: boolean }>(res);
+  } catch {
+    localStorage.removeItem('fm_admin_token');
+    localStorage.removeItem('fm_admin_user');
+    return { success: true };
+  }
+}
+
+export async function fetchAnalytics(): Promise<AnalyticsResponse> {
+  const res = await loggedFetch(`${API_BASE}/analytics`);
+  return handleResponse<AnalyticsResponse>(res);
+}
+
+
 

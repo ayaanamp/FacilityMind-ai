@@ -135,5 +135,11 @@ class VectorStore:
                 logger.warning(f"Could not load vector index: {e}")
         return False
 
+    def clear(self) -> None:
+        """Clear all indexed documents and persist empty state."""
+        self.documents = []
+        self.save()
+        logger.info(f"Vector store cleared at {self.persistence_path}")
+
 
 vector_store = VectorStore()

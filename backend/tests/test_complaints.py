@@ -1,4 +1,4 @@
-"""Test suite for Complaint submission, multi-agent pipeline, and decision generation."""
+"""Test suite for Complaint submission, tracking, lifecycle transitions, timeline, and decision generation."""
 
 import pytest
 from httpx import AsyncClient
@@ -11,6 +11,8 @@ async def test_create_and_analyze_complaint(async_client: AsyncClient):
         "raw_complaint": "The AC in Computer Lab 3 is not cooling properly and is making a loud rattling noise.",
         "location": "Computer Lab 3",
         "severity": "Medium",
+        "reporter_phone": "+91 98765 43210",
+        "reporter_name": "Dr. Sarah",
     }
 
     response = await async_client.post("/api/v1/complaints", json=payload)
@@ -18,7 +20,7 @@ async def test_create_and_analyze_complaint(async_client: AsyncClient):
 
     data = response.json()
     assert "complaint_id" in data
-    assert data["status"] == "Analyzed"
+    assert data["status"] in ["UNDER_REVIEW", "Analyzed"]
 
     # 1. Verify Analysis Agent Output
     analysis = data["analysis"]
@@ -66,19 +68,80 @@ async def test_create_and_analyze_complaint(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_get_complaint_decision_by_id(async_client: AsyncClient):
-    """Test retrieving existing decision report by complaint ID."""
-    # First create
+async def test_complaint_tracking_and_timeline(async_client: AsyncClient):
+    """Test public tracking endpoint and timeline events for a complaint."""
+    # Create complaint
     create_resp = await async_client.post(
         "/api/v1/complaints",
-        json={"raw_complaint": "Elevator door is stuck on Floor 2 and buzzer is sounding."},
+        json={
+            "raw_complaint": "Elevator door is stuck on Floor 2 and buzzer is sounding.",
+            "location": "Main Building Elevator #1",
+            "reporter_phone": "+91 99887 76655",
+            "reporter_name": "Prof. Rao",
+        },
+    )
+    assert create_resp.status_code == 200
+    cid = create_resp.json()["complaint_id"]
+
+    # Track by ID
+    track_resp = await async_client.get(f"/api/v1/complaints/track/{cid}")
+    assert track_resp.status_code == 200
+    track_data = track_resp.json()
+    assert track_data["id"] == cid
+    assert track_data["tracking_code"].startswith("FM-")
+    assert len(track_data["timeline_events"]) >= 2
+
+    # Track by tracking code
+    tcode = track_data["tracking_code"]
+    track_code_resp = await async_client.get(f"/api/v1/complaints/track/{tcode}")
+    assert track_code_resp.status_code == 200
+    assert track_code_resp.json()["id"] == cid
+
+    # Get user complaints by phone
+    user_my_resp = await async_client.get("/api/v1/complaints/user/my?phone=%2B91 99887 76655")
+    assert user_my_resp.status_code == 200
+    assert len(user_my_resp.json()) >= 1
+
+    # Resolve complaint
+    resolve_resp = await async_client.post(
+        f"/api/v1/complaints/{cid}/resolve",
+        json={
+            "resolution_notes": "Door optical safety sensor realigned and debris removed from floor track.",
+            "labor_cost": 500,
+            "parts_cost": 200,
+            "assigned_technician_name": "Arun Kumar",
+        },
+    )
+    assert resolve_resp.status_code == 200
+    assert resolve_resp.json()["status"] == "RESOLVED"
+
+    # Verify timeline updated with resolution
+    timeline_resp = await async_client.get(f"/api/v1/complaints/{cid}/timeline")
+    assert timeline_resp.status_code == 200
+    events = timeline_resp.json()
+    assert any(e["event_type"] == "RESOLVED" for e in events)
+
+    # Reopen complaint
+    reopen_resp = await async_client.post(
+        f"/api/v1/complaints/{cid}/reopen",
+        json={"reason": "Door still jamming intermittently during peak load.", "actor_name": "Prof. Rao"},
+    )
+    assert reopen_resp.status_code == 200
+    assert reopen_resp.json()["status"] == "REOPENED"
+
+
+@pytest.mark.asyncio
+async def test_get_complaint_decision_by_id(async_client: AsyncClient):
+    """Test retrieving existing decision report by complaint ID."""
+    create_resp = await async_client.post(
+        "/api/v1/complaints",
+        json={"raw_complaint": "Classroom 104 projector lamp is flickering violently and turns off after 5 minutes."},
     )
     assert create_resp.status_code == 200
     complaint_id = create_resp.json()["complaint_id"]
 
-    # Fetch decision
     get_resp = await async_client.get(f"/api/v1/complaints/{complaint_id}/decision")
     assert get_resp.status_code == 200
     decision_data = get_resp.json()
     assert decision_data["complaint_id"] == complaint_id
-    assert "Elevator" in decision_data["analysis"]["equipment_type"]
+    assert "Projector" in decision_data["analysis"]["equipment_type"]

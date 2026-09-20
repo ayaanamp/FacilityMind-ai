@@ -5,12 +5,84 @@ from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
+class AdminUser(Base):
+    """Administrator credentials and authorized manager accounts."""
+
+    __tablename__ = "admin_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    username: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
+    salt: Mapped[str] = mapped_column(String(64), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(150), default="Administrator")
+    email: Mapped[str] = mapped_column(String(150), default="")
+    phone: Mapped[str] = mapped_column(String(50), default="")
+    role: Mapped[str] = mapped_column(String(50), default="Facility Manager")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[str] = mapped_column(String(50), default="")
+    last_login: Mapped[str | None] = mapped_column(String(50), default=None)
+
+
+class Organization(Base):
+    """Organization/Facility profile configured during initial onboarding."""
+
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    org_type: Mapped[str] = mapped_column(String(100), default="College")
+    custom_org_type: Mapped[str | None] = mapped_column(String(100), default=None)
+    country: Mapped[str] = mapped_column(String(100), default="India")
+    state: Mapped[str] = mapped_column(String(100), default="")
+    city: Mapped[str] = mapped_column(String(100), default="")
+    primary_location: Mapped[str] = mapped_column(String(200), default="")
+    admin_name: Mapped[str] = mapped_column(String(100), default="Administrator")
+    admin_email: Mapped[str] = mapped_column(String(150), default="")
+    admin_role: Mapped[str] = mapped_column(String(100), default="Facility Manager")
+    admin_phone: Mapped[str] = mapped_column(String(50), default="")
+    buildings_count: Mapped[int] = mapped_column(Integer, default=1)
+    floors_count: Mapped[int] = mapped_column(Integer, default=1)
+    approx_users_count: Mapped[int] = mapped_column(Integer, default=0)
+    operating_hours: Mapped[str] = mapped_column(String(100), default="24/7 Operations")
+    categories_json: Mapped[str] = mapped_column(Text, default="[]")
+    blocks_json: Mapped[str] = mapped_column(Text, default="[]")
+    gemini_api_key_configured: Mapped[bool] = mapped_column(Boolean, default=False)
+    setup_completed: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[str] = mapped_column(String(50), default="")
+    updated_at: Mapped[str] = mapped_column(String(50), default="")
+
+
+class Equipment(Base):
+    """Infrastructure asset inventory item within an organization."""
+
+    __tablename__ = "equipment"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    equipment_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    equipment_type: Mapped[str] = mapped_column(String(100), index=True)
+    equipment_id: Mapped[str] = mapped_column(String(50), index=True)
+    location: Mapped[str] = mapped_column(String(150), index=True)
+    building: Mapped[str | None] = mapped_column(String(100), default="")
+    floor: Mapped[str | None] = mapped_column(String(50), default="")
+    department: Mapped[str | None] = mapped_column(String(100), default="")
+    manufacturer: Mapped[str | None] = mapped_column(String(100), default="")
+    model: Mapped[str | None] = mapped_column(String(100), default="")
+    serial_number: Mapped[str | None] = mapped_column(String(100), default="")
+    installation_date: Mapped[str | None] = mapped_column(String(50), default="")
+    status: Mapped[str] = mapped_column(String(50), default="Operational")  # Operational, Under Maintenance, Decommissioned
+    criticality: Mapped[str] = mapped_column(String(30), default="Medium")  # Critical, High, Medium, Low
+    created_at: Mapped[str] = mapped_column(String(50), default="")
+
+
 class MaintenanceRecord(Base):
     """Historical maintenance case records in knowledge base."""
 
     __tablename__ = "maintenance_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     equipment_type: Mapped[str] = mapped_column(String(100), index=True)
     equipment_id: Mapped[str] = mapped_column(String(50), index=True)
     location: Mapped[str] = mapped_column(String(150), index=True)
@@ -34,24 +106,36 @@ class Complaint(Base):
     __tablename__ = "complaints"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    tracking_code: Mapped[str | None] = mapped_column(String(50), index=True, default=None)
+    title: Mapped[str | None] = mapped_column(String(200), default=None)
     raw_complaint: Mapped[str] = mapped_column(Text, nullable=False)
     equipment_type: Mapped[str | None] = mapped_column(String(100), default="General Facility")
     equipment_id: Mapped[str | None] = mapped_column(String(50), default=None)
     location: Mapped[str | None] = mapped_column(String(150), default="Main Campus")
+    building: Mapped[str | None] = mapped_column(String(100), default="")
+    floor: Mapped[str | None] = mapped_column(String(50), default="")
+    room: Mapped[str | None] = mapped_column(String(100), default="")
     symptoms: Mapped[str | None] = mapped_column(Text, default="")
     severity: Mapped[str] = mapped_column(String(30), default="Medium")
-    status: Mapped[str] = mapped_column(String(50), default="Analyzed")
+    status: Mapped[str] = mapped_column(String(50), default="SUBMITTED")
     reporter_name: Mapped[str | None] = mapped_column(String(100), default="Campus Member")
     reporter_dept: Mapped[str | None] = mapped_column(String(100), default="General Facility")
+    reporter_phone: Mapped[str | None] = mapped_column(String(30), default=None)
     noticed_at: Mapped[str | None] = mapped_column(String(50), default=None)
     work_order_status: Mapped[str] = mapped_column(String(50), default="Triage Pending")
     accuracy_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    reporter_phone: Mapped[str | None] = mapped_column(String(30), default=None)
     assigned_technician_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     assigned_technician_name: Mapped[str | None] = mapped_column(String(100), default=None)
     labor_cost: Mapped[int | None] = mapped_column(Integer, default=0)
     parts_cost: Mapped[int | None] = mapped_column(Integer, default=0)
+    other_cost: Mapped[int | None] = mapped_column(Integer, default=0)
     total_actual_cost: Mapped[int | None] = mapped_column(Integer, default=0)
+    public_resolution_notes: Mapped[str | None] = mapped_column(Text, default="")
+    internal_admin_notes: Mapped[str | None] = mapped_column(Text, default="")
+    resolved_at: Mapped[str | None] = mapped_column(String(50), default=None)
+    created_at: Mapped[str | None] = mapped_column(String(50), default="")
+    updated_at: Mapped[str | None] = mapped_column(String(50), default="")
 
     diagnosis = relationship(
         "Diagnosis", back_populates="complaint", uselist=False, cascade="all, delete-orphan"
@@ -63,6 +147,9 @@ class Complaint(Base):
     feedback = relationship(
         "TechnicianFeedback", back_populates="complaint", cascade="all, delete-orphan"
     )
+    timeline_events = relationship(
+        "ComplaintTimelineEvent", back_populates="complaint", cascade="all, delete-orphan"
+    )
 
 
 class TechnicianStaff(Base):
@@ -71,9 +158,11 @@ class TechnicianStaff(Base):
     __tablename__ = "technicians"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(100), index=True)
     phone: Mapped[str] = mapped_column(String(30), default="")
     role: Mapped[str] = mapped_column(String(100), default="HVAC Specialist")
+    department: Mapped[str] = mapped_column(String(100), default="Facility Operations")
     hourly_rate: Mapped[int] = mapped_column(Integer, default=350)
     per_job_rate: Mapped[int] = mapped_column(Integer, default=800)
     total_jobs_completed: Mapped[int] = mapped_column(Integer, default=0)
@@ -159,3 +248,36 @@ class TechnicianFeedback(Base):
     appended_to_kb: Mapped[bool] = mapped_column(Boolean, default=False)
 
     complaint = relationship("Complaint", back_populates="feedback")
+
+
+class ComplaintTimelineEvent(Base):
+    """Audit and timeline event logged at each lifecycle transition of a complaint."""
+
+    __tablename__ = "complaint_timeline_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    complaint_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("complaints.id", ondelete="CASCADE"), index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(50), index=True)  # SUBMITTED, AI_ANALYZED, UNDER_REVIEW, ASSIGNED, IN_PROGRESS, WAITING, RESOLVED, CLOSED, REOPENED
+    actor_name: Mapped[str] = mapped_column(String(100), default="System")
+    actor_role: Mapped[str] = mapped_column(String(50), default="System")  # User, Admin, System, Technician
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(50), default="")
+
+    complaint = relationship("Complaint", back_populates="timeline_events")
+
+
+class Notification(Base):
+    """In-app alert and update sent to users or administrators."""
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    recipient_phone: Mapped[str | None] = mapped_column(String(50), index=True, default=None)
+    complaint_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[str] = mapped_column(String(50), default="")

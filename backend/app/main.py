@@ -11,11 +11,11 @@ from backend.app.api.routes import api_router
 from backend.app.core.config import get_settings
 from backend.app.core.logging import logging, setup_logging
 from backend.app.database.migration import reconcile_database_schema
-from backend.app.database.session import AsyncSessionLocal, engine
-from backend.app.rag.indexing import seed_database_and_index
+from backend.app.database.session import engine
 from backend.app.rag.vector_store import vector_store
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 logger = logging.getLogger("FacilityMind.Main")
 settings = get_settings()
@@ -31,10 +31,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with engine.begin() as conn:
         await conn.run_sync(reconcile_database_schema)
 
-    # 2. Try loading vector store or seed if empty
-    if not vector_store.load() or vector_store.count() == 0:
-        async with AsyncSessionLocal() as session:
-            await seed_database_and_index(session)
+    # 2. Load existing vector store index from disk (if present)
+    vector_store.load()
+    if vector_store.count() == 0:
+        try:
+            from backend.app.database.session import AsyncSessionLocal
+            from backend.app.models.maintenance import MaintenanceRecord
+            from backend.app.rag.indexing import build_index_from_db
+            from sqlalchemy import func, select
+
+            async with AsyncSessionLocal() as session:
+                rec_count_res = await session.execute(select(func.count(MaintenanceRecord.id)))
+                rec_count = rec_count_res.scalar() or 0
+                if rec_count > 0:
+                    await build_index_from_db(session)
+        except Exception as err:
+            logger.warning(f"Vector sync on startup note: {err}")
 
     yield
 
@@ -55,16 +67,28 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS configuration
+    # Permissive CORS configuration with regex origin matching and credentials support
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS
-        if isinstance(settings.CORS_ORIGINS, list)
-        else [settings.CORS_ORIGINS],
+        allow_origin_regex=r"^https?://.*$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
+
+    # Root & Docs Redirects
+    @app.get("/", include_in_schema=False)
+    async def root_redirect():
+        return RedirectResponse(url=f"{settings.API_PREFIX}/docs")
+
+    @app.get("/docs", include_in_schema=False)
+    async def docs_redirect():
+        return RedirectResponse(url=f"{settings.API_PREFIX}/docs")
+
+    @app.get("/redoc", include_in_schema=False)
+    async def redoc_redirect():
+        return RedirectResponse(url=f"{settings.API_PREFIX}/redoc")
 
     # Include versioned API router
     app.include_router(api_router, prefix=settings.API_PREFIX)

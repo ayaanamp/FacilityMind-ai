@@ -161,6 +161,11 @@ export interface DashboardMetrics {
   total_labor_paid_inr?: number;
   total_active_cost_inr?: number;
   total_technicians_count?: number;
+  total_complaints_count?: number;
+  pending_complaints_count?: number;
+  total_users_count?: number;
+  total_equipment_count?: number;
+  total_expenses_inr?: number;
   urgency_distribution: {
     Low: number;
     Medium: number;
@@ -287,6 +292,208 @@ export interface GeminiChatResponse {
     raw_complaint?: string;
     symptoms?: string;
   } | null;
+}
+
+export interface OrganizationProfile {
+  id: number;
+  name: string;
+  org_type: string;
+  custom_org_type?: string | null;
+  country: string;
+  state: string;
+  city: string;
+  primary_location: string;
+  admin_name: string;
+  admin_email?: string | null;
+  admin_role: string;
+  admin_phone?: string | null;
+  buildings_count: number;
+  floors_count: number;
+  approx_users_count: number;
+  operating_hours: string;
+  categories: string[];
+  blocks?: string[];
+  gemini_api_key_configured: boolean;
+  setup_completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceStats {
+  complaints_count: number;
+  active_complaints_count: number;
+  resolved_complaints_count: number;
+  equipment_count: number;
+  maintenance_records_count: number;
+  technicians_count: number;
+}
+
+export interface OrganizationStatus {
+  setup_completed: boolean;
+  is_fresh_install: boolean;
+  organization?: OrganizationProfile | null;
+  stats: WorkspaceStats;
+  suggested_categories: string[];
+}
+
+export interface EquipmentItem {
+  id: number;
+  organization_id?: number | null;
+  equipment_name: string;
+  equipment_type: string;
+  equipment_id: string;
+  location: string;
+  building?: string;
+  floor?: string;
+  department?: string;
+  manufacturer?: string;
+  model?: string;
+  serial_number?: string;
+  installation_date?: string;
+  status: 'Operational' | 'Degraded' | 'Under Maintenance' | 'Offline' | string;
+  criticality: 'Low' | 'Medium' | 'High' | 'Critical' | string;
+  created_at: string;
+}
+
+export interface ApiKeyVerifyResponse {
+  valid: boolean;
+  message: string;
+}
+
+export interface ComplaintTimelineEvent {
+  id: number;
+  complaint_id: number;
+  event_type: 'SUBMITTED' | 'AI_ANALYZED' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'REOPENED' | string;
+  actor_name: string;
+  actor_role: 'User' | 'Admin' | 'System' | 'Technician' | string;
+  message: string;
+  created_at: string;
+}
+
+export interface NotificationItem {
+  id: number;
+  organization_id?: number | null;
+  recipient_phone?: string | null;
+  complaint_id?: number | null;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface ComplaintTrackItem {
+  id: number;
+  tracking_code: string;
+  title?: string | null;
+  raw_complaint: string;
+  equipment_type?: string | null;
+  equipment_id?: string | null;
+  location?: string | null;
+  building?: string | null;
+  floor?: string | null;
+  room?: string | null;
+  severity: string;
+  status: string;
+  work_order_status?: string | null;
+  reporter_name?: string | null;
+  reporter_dept?: string | null;
+  noticed_at?: string | null;
+  created_at?: string | null;
+  resolved_at?: string | null;
+  public_resolution_notes?: string | null;
+  assigned_technician_name?: string | null;
+  timeline_events: ComplaintTimelineEvent[];
+}
+
+export interface OrganizationPublic {
+  name: string;
+  org_type: string;
+  primary_location: string;
+  operating_hours: string;
+  categories: string[];
+  blocks: string[];
+  emergency_phone: string;
+  setup_completed: boolean;
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  role: string;
+  organization_id?: number | null;
+  last_login?: string | null;
+}
+
+export interface AdminLoginResponse {
+  access_token: string;
+  token_type: string;
+  user: AdminUser;
+}
+
+export interface CategorySpendItem {
+  category: string;
+  complaint_count: number;
+  parts_cost: number;
+  labor_cost: number;
+  other_cost: number;
+  total_cost: number;
+}
+
+export interface LocationMetricItem {
+  location: string;
+  count: number;
+  resolved: number;
+  open: number;
+}
+
+export interface MonthlySpendItem {
+  month: string;
+  complaints: number;
+  spend: number;
+}
+
+export interface WorkerWorkloadItem {
+  worker_id: number;
+  name: string;
+  department: string;
+  status: string;
+  completed_jobs: number;
+  total_earnings: number;
+}
+
+export interface AnalyticsResponse {
+  total_complaints: number;
+  open_complaints: number;
+  in_progress_complaints: number;
+  resolved_complaints: number;
+  critical_complaints: number;
+  average_resolution_hours: number;
+  total_spend_inr: number;
+  pending_estimated_spend_inr: number;
+  total_equipment_count: number;
+  total_workers_count: number;
+  category_spending: CategorySpendItem[];
+  location_metrics: LocationMetricItem[];
+  monthly_spending: MonthlySpendItem[];
+  worker_workloads: WorkerWorkloadItem[];
+}
+
+export interface ComplaintResolvePayload {
+  resolution_notes: string;
+  assigned_technician_id?: number | null;
+  assigned_technician_name?: string | null;
+  labor_cost?: number;
+  parts_cost?: number;
+  other_cost?: number;
+  internal_admin_notes?: string | null;
+}
+
+export interface ComplaintReopenPayload {
+  reason: string;
+  actor_name?: string;
 }
 
 

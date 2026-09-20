@@ -38,55 +38,122 @@ const DEFAULT_SUGGESTIONS = [
 ];
 
 /**
- * Lightweight formatting helper for Gemini markdown in chat messages.
+ * Formatting helper for Gemini markdown in chat messages including tables, lists, and headings.
  */
 function FormattedMessage({ text }: { text: string }) {
-  const lines = text.split('\n');
+  const rawLines = text.split('\n');
+  const blocks: Array<{ type: 'heading' | 'bullet' | 'numbered' | 'table' | 'p' | 'empty'; content: any }> = [];
+
+  let i = 0;
+  while (i < rawLines.length) {
+    const line = rawLines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      blocks.push({ type: 'empty', content: '' });
+      i++;
+      continue;
+    }
+
+    // Table detection
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      const tableLines: string[] = [];
+      while (i < rawLines.length && rawLines[i].trim().startsWith('|') && rawLines[i].trim().endsWith('|')) {
+        tableLines.push(rawLines[i].trim());
+        i++;
+      }
+      blocks.push({ type: 'table', content: tableLines });
+      continue;
+    }
+
+    if (trimmed.startsWith('### ')) {
+      blocks.push({ type: 'heading', content: trimmed.replace('### ', '') });
+      i++;
+      continue;
+    }
+
+    if (trimmed.startsWith('• ') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      blocks.push({ type: 'bullet', content: trimmed.replace(/^[•\-*]\s+/, '') });
+      i++;
+      continue;
+    }
+
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+    if (numMatch) {
+      blocks.push({ type: 'numbered', content: { num: numMatch[1], text: numMatch[2] } });
+      i++;
+      continue;
+    }
+
+    blocks.push({ type: 'p', content: trimmed });
+    i++;
+  }
 
   return (
-    <div className="space-y-1.5 text-xs leading-relaxed text-zinc-200">
-      {lines.map((line, idx) => {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          return <div key={idx} className="h-1" />;
-        }
-
-        // Heading: ### Header
-        if (trimmed.startsWith('### ')) {
+    <div className="space-y-1.5 text-xs leading-relaxed text-zinc-200 font-sans">
+      {blocks.map((block, idx) => {
+        if (block.type === 'empty') return <div key={idx} className="h-1" />;
+        if (block.type === 'heading') {
           return (
-            <h4
-              key={idx}
-              className="text-xs font-bold text-emerald-400 tracking-wide pt-1 pb-0.5 flex items-center gap-1.5"
-            >
-              {parseInlineMarkdown(trimmed.replace('### ', ''))}
+            <h4 key={idx} className="text-xs font-bold text-emerald-400 tracking-wide pt-1 pb-0.5 flex items-center gap-1.5">
+              {parseInlineMarkdown(block.content)}
             </h4>
           );
         }
-
-        // Bullet point: • or -
-        if (trimmed.startsWith('• ') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-          const content = trimmed.replace(/^[•\-*]\s+/, '');
+        if (block.type === 'bullet') {
           return (
             <div key={idx} className="flex items-start gap-1.5 pl-1.5 my-0.5">
               <span className="text-emerald-400 font-bold select-none">•</span>
-              <div className="flex-1">{parseInlineMarkdown(content)}</div>
+              <div className="flex-1">{parseInlineMarkdown(block.content)}</div>
             </div>
           );
         }
-
-        // Numbered list: 1. or 2.
-        const numberedMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
-        if (numberedMatch) {
+        if (block.type === 'numbered') {
           return (
             <div key={idx} className="flex items-start gap-1.5 pl-1.5 my-0.5">
-              <span className="text-emerald-400 font-semibold select-none">{numberedMatch[1]}.</span>
-              <div className="flex-1">{parseInlineMarkdown(numberedMatch[2])}</div>
+              <span className="text-emerald-400 font-semibold select-none">{block.content.num}.</span>
+              <div className="flex-1">{parseInlineMarkdown(block.content.text)}</div>
             </div>
           );
         }
-
-        // Standard line
-        return <p key={idx}>{parseInlineMarkdown(trimmed)}</p>;
+        if (block.type === 'table') {
+          const rows = block.content.map((rowStr: string) =>
+            rowStr
+              .split('|')
+              .map((cell: string) => cell.trim())
+              .filter((_, cIdx, arr) => cIdx > 0 && cIdx < arr.length - 1)
+          );
+          if (rows.length < 2) return null;
+          const headers = rows[0];
+          const dataRows = rows.slice(1).filter((r: string[]) => !r.every((c: string) => /^:?-+:?$/.test(c)));
+          return (
+            <div key={idx} className="my-2 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950/80">
+              <table className="w-full text-left text-[11px] border-collapse">
+                <thead>
+                  <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-300">
+                    {headers.map((h: string, hIdx: number) => (
+                      <th key={hIdx} className="px-2.5 py-1.5 font-semibold text-emerald-400">
+                        {parseInlineMarkdown(h)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {dataRows.map((row: string[], rIdx: number) => (
+                    <tr key={rIdx} className="border-b border-zinc-850/60 hover:bg-zinc-900/40">
+                      {row.map((cell: string, cIdx: number) => (
+                        <td key={cIdx} className="px-2.5 py-1 text-zinc-300">
+                          {parseInlineMarkdown(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        return <p key={idx}>{parseInlineMarkdown(block.content)}</p>;
       })}
     </div>
   );

@@ -75,7 +75,7 @@ def main():
         "uvicorn",
         "backend.app.main:app",
         "--host",
-        "127.0.0.1",
+        "0.0.0.0",
         "--port",
         "8000",
         "--reload",
@@ -120,8 +120,21 @@ def main():
     frontend_thread.start()
 
     print("\n✅ Subsystems Dispatched:")
-    print("   🌐 Web Dashboard   : http://localhost:5173")
-    print("   🔌 REST API Docs   : http://localhost:8000/api/v1/docs\n")
+    print("   🌐 User / Student Portal : http://localhost:5173")
+    print("   🛡️  Admin Command Center  : http://localhost:5173 (Admin Sign In)")
+    print("   🔌 REST API Swagger Docs : http://localhost:8000/api/v1/docs\n")
+
+    # Automatically launch web browser
+    def auto_open_browser():
+        time.sleep(2.5)
+        try:
+            import webbrowser
+
+            webbrowser.open("http://localhost:5173")
+        except Exception:
+            pass
+
+    threading.Thread(target=auto_open_browser, daemon=True).start()
 
     def shutdown(signum=None, frame=None):
         print("\n\n🛑 Shutting down FacilityMind AI servers...")

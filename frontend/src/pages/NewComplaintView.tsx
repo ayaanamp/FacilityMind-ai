@@ -13,7 +13,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { AgentWorkflowProgress } from '../components/AgentWorkflowProgress';
-import { analyzeComplaint } from '../services/api';
+import { analyzeComplaint, fetchOrganizationSettings } from '../services/api';
 import { DecisionReport } from '../types';
 
 interface NewComplaintViewProps {
@@ -139,6 +139,33 @@ export const NewComplaintView: React.FC<NewComplaintViewProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const [categories, setCategories] = useState<string[]>([
+    'Air Conditioner',
+    'Diesel Generator',
+    'Elevator',
+    'Water Pump',
+    'Restroom / Washroom Plumbing',
+    'Lighting & Electrical',
+    'Classroom Projector',
+    'Laboratory Equipment',
+    'Physics & Electronics Apparatus',
+    'UPS System',
+    'RO Water Purifier',
+    'Electrical Panel',
+    'CCTV Camera',
+    'Network Switch',
+  ]);
+
+  React.useEffect(() => {
+    fetchOrganizationSettings()
+      .then((org) => {
+        if (org.categories && org.categories.length > 0) {
+          setCategories(org.categories);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   React.useEffect(() => {
     if (initialValues) {
@@ -464,20 +491,9 @@ export const NewComplaintView: React.FC<NewComplaintViewProps> = ({
                   }`}
                 >
                   <option value="" disabled>-- Select Equipment Category * --</option>
-                  <option value="Air Conditioner">Air Conditioner (HVAC)</option>
-                  <option value="Diesel Generator">Diesel Generator (DG)</option>
-                  <option value="Elevator">Elevator / Passenger Lift</option>
-                  <option value="Water Pump">Water Pump / Hydro-pneumatic</option>
-                  <option value="Restroom / Washroom Plumbing">Restroom / Washroom Plumbing (Flush, Taps, Urinals)</option>
-                  <option value="Lighting & Electrical">Lighting &amp; Electrical</option>
-                  <option value="Classroom Projector">Classroom Projector</option>
-                  <option value="Laboratory Equipment">Chemistry / Biology Lab Equipment (Test Tubes, Glassware, Autoclave)</option>
-                  <option value="Physics & Electronics Apparatus">Physics &amp; Electronics Lab (Oscilloscope, Power Supply)</option>
-                  <option value="UPS System">UPS System / Inverter</option>
-                  <option value="RO Water Purifier">RO Water Purifier</option>
-                  <option value="Electrical Panel">Electrical Panel / Switchgear</option>
-                  <option value="CCTV Camera">CCTV Camera / Surveillance</option>
-                  <option value="Network Switch">Network Switch / PoE Router</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                   <option value="Custom Hardware / Other">+ Add Custom Hardware / Other Asset...</option>
                 </select>
                 {formErrors.equipmentType && (

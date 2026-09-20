@@ -103,6 +103,11 @@ class DashboardMetricsResponse(BaseModel):
     total_labor_paid_inr: int = 0
     total_active_cost_inr: int = 0
     total_technicians_count: int = 0
+    total_complaints_count: int = 0
+    pending_complaints_count: int = 0
+    total_users_count: int = 0
+    total_equipment_count: int = 0
+    total_expenses_inr: int = 0
     urgency_distribution: UrgencyBreakdown
     equipment_breakdown: list[EquipmentStat]
     location_breakdown: list[LocationStat]

@@ -39,6 +39,7 @@ class DecisionReportResponse(BaseModel):
     """Unified enterprise decision-support report for facility management."""
 
     complaint_id: int
+    tracking_code: str | None = None
     raw_complaint: str
     status: str
     created_at: datetime

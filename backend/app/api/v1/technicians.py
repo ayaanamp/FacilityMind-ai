@@ -93,15 +93,6 @@ async def list_technicians(
     res = await db.execute(stmt)
     records = list(res.scalars().all())
 
-    # Auto-seed defaults if table is empty
-    if not records:
-        for s in DEFAULT_STAFF:
-            t = TechnicianStaff(**s)
-            db.add(t)
-        await db.commit()
-        res = await db.execute(stmt)
-        records = list(res.scalars().all())
-
     total_techs = len(records)
     active_on_duty = sum(1 for r in records if r.status == "On Job")
     total_labor_paid = sum(r.total_earnings for r in records)

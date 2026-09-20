@@ -1,18 +1,34 @@
-"""Gemini Context-Aware Campus Facility AI Chatbot Endpoint."""
+"""Gemini Context-Aware AI Chatbot Endpoints for User and Admin Portals.
 
+Provides full conversational intelligence, incident drafting, ticket tracking,
+financial telemetry, technician roster analytics, and knowledge base retrieval.
+Supports Google Gemini 2.5 Flash with seamless local autonomous semantic fallbacks.
+"""
+
+from __future__ import annotations
+
+import json
 import os
+import re
 from typing import Any
 
 import httpx
 from backend.app.core.config import get_settings
 from backend.app.core.logging import logging
 from backend.app.database.session import get_db
-from backend.app.models.maintenance import Complaint, MaintenanceRecord, TechnicianStaff
+from backend.app.models.maintenance import (
+    Complaint,
+    Equipment,
+    MaintenanceRecord,
+    Organization,
+    TechnicianStaff,
+)
 from backend.app.rag.retriever import retriever
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger("FacilityMind.Chat")
 settings = get_settings()
@@ -29,12 +45,16 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User prompt or question")
     history: list[ChatMessage] = Field(default_factory=list, description="Recent conversation turns")
     context_complaint_id: int | None = None
+    user_phone: str | None = None
 
 
 class DraftComplaintData(BaseModel):
     equipment_type: str | None = None
     equipment: str | None = None
     location: str | None = None
+    building: str | None = None
+    floor: str | None = None
+    room: str | None = None
     symptoms: str | None = None
     raw_complaint: str | None = None
     severity: str | None = "Medium"
@@ -43,7 +63,7 @@ class DraftComplaintData(BaseModel):
 
 class SuggestedAction(BaseModel):
     label: str
-    action_type: str  # "draft_complaint", "navigate_tab", "query_kb"
+    action_type: str  # "draft_complaint", "navigate_tab", "track_ticket", "info"
     payload: dict[str, Any] | None = None
 
 
@@ -58,21 +78,163 @@ class ChatResponse(BaseModel):
     complaint_draft: DraftComplaintData | None = None
 
 
+def extract_incident_draft(
+    msg: str,
+    categories: list[str] | None = None,
+    blocks: list[str] | None = None,
+) -> DraftComplaintData | None:
+    """Extract structured equipment, location, severity, and symptom draft from free text."""
+    msg_clean = msg.strip()
+    msg_lower = msg_clean.lower()
+
+    # Determine if message is reporting an incident/breakdown
+    complaint_keywords = [
+        "broken", "not working", "leak", "leaking", "rattling", "smoke", "spark",
+        "warm air", "noise", "stuck", "faulty", "tripping", "blackout", "overflow",
+        "repair", "fix", "damage", "smell", "failed", "down", "issue with", "problem with"
+    ]
+    if not any(k in msg_lower for k in complaint_keywords) and len(msg_clean) < 15:
+        return None
+
+    # Detect equipment type
+    detected_equip = "General Facility"
+    equip_map = {
+        "air conditioner": "Air Conditioner",
+        "ac": "Air Conditioner",
+        "hvac": "Air Conditioner",
+        "chiller": "Air Conditioner",
+        "cooling": "Air Conditioner",
+        "generator": "Diesel Generator",
+        "dg": "Diesel Generator",
+        "genset": "Diesel Generator",
+        "elevator": "Elevator",
+        "lift": "Elevator",
+        "projector": "Classroom Projector",
+        "screen": "Classroom Projector",
+        "av": "Classroom Projector",
+        "water pump": "Water Pump",
+        "pump": "Water Pump",
+        "motor": "Water Pump",
+        "water purifier": "RO Water Purifier",
+        "ro purifier": "RO Water Purifier",
+        "cooler": "RO Water Purifier",
+        "plumbing": "Restroom / Washroom Plumbing",
+        "tap": "Restroom / Washroom Plumbing",
+        "pipe": "Restroom / Washroom Plumbing",
+        "drain": "Restroom / Washroom Plumbing",
+        "flush": "Restroom / Washroom Plumbing",
+        "washroom": "Restroom / Washroom Plumbing",
+        "toilet": "Restroom / Washroom Plumbing",
+        "light": "Lighting & Electrical",
+        "bulb": "Lighting & Electrical",
+        "tube": "Lighting & Electrical",
+        "wiring": "Lighting & Electrical",
+        "switch": "Lighting & Electrical",
+        "ups": "UPS System",
+        "inverter": "UPS System",
+        "battery": "UPS System",
+        "wifi": "Network Switch / WiFi",
+        "router": "Network Switch / WiFi",
+        "internet": "Network Switch / WiFi",
+        "network": "Network Switch / WiFi",
+    }
+    if categories:
+        for c in categories:
+            if c.lower() in msg_lower:
+                detected_equip = c
+                break
+
+    if detected_equip == "General Facility":
+        for k, v in equip_map.items():
+            if re.search(rf"\b{re.escape(k)}\b", msg_lower):
+                detected_equip = v
+                break
+
+    # Detect location
+    detected_loc = "Main Campus"
+    detected_bldg = ""
+    detected_floor = ""
+    detected_room = ""
+
+    # Check for room (e.g. Room 204, Lab 3, Hall B)
+    room_match = re.search(r"\b(lab\s*\d+|room\s*\d+|hall\s*[a-z0-9]+|flat\s*\d+|ward\s*\d+)\b", msg_lower)
+    if room_match:
+        detected_room = room_match.group(0).title()
+
+    # Check for floor
+    floor_match = re.search(r"\b(ground|1st|2nd|3rd|4th|5th|\d+)\s*(st|nd|rd|th)?\s*floor\b", msg_lower)
+    if floor_match:
+        detected_floor = floor_match.group(1).title()
+
+    # Check for blocks
+    if blocks:
+        for b in blocks:
+            if b.lower() in msg_lower:
+                detected_bldg = b
+                break
+
+    if not detected_bldg:
+        bldg_match = re.search(r"\b(block\s*[a-z0-9]+|science\s*wing|library|academic\s*block|hostel\s*[a-z0-9]*)\b", msg_lower)
+        if bldg_match:
+            detected_bldg = bldg_match.group(0).title()
+
+    loc_parts = [detected_bldg, f"Floor {detected_floor}" if detected_floor else "", detected_room]
+    loc_clean = ", ".join([p for p in loc_parts if p])
+    if not loc_clean:
+        loc_clean = detected_loc
+
+    # Determine severity
+    detected_severity = "Medium"
+    if any(k in msg_lower for k in ["fire", "spark", "burning", "smoke", "flood", "shock", "danger", "emergency", "explosion"]):
+        detected_severity = "Critical"
+    elif any(k in msg_lower for k in ["severe", "tripping", "stuck", "hot", "completely", "urgent", "overflow"]):
+        detected_severity = "High"
+    elif any(k in msg_lower for k in ["minor", "slow", "flicker", "cosmetic"]):
+        detected_severity = "Low"
+
+    return DraftComplaintData(
+        equipment_type=detected_equip,
+        equipment=detected_equip,
+        location=loc_clean,
+        building=detected_bldg,
+        floor=detected_floor,
+        room=detected_room,
+        symptoms=msg_clean,
+        raw_complaint=msg_clean,
+        severity=detected_severity,
+        urgency=detected_severity,
+    )
+
+
+async def _resolve_gemini_api_key(db: AsyncSession) -> str:
+    """Resolve Gemini API key from Organization DB profile, settings, or environment."""
+    try:
+        org_res = await db.execute(select(Organization.gemini_api_key).limit(1))
+        db_key = org_res.scalar_one_or_none()
+        if db_key and len(db_key.strip()) >= 10:
+            return db_key.strip()
+    except Exception:
+        pass
+
+    env_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+    return env_key.strip() if env_key else ""
+
+
 async def _generate_gemini_chat_reply(
     prompt: str,
     system_instruction: str,
     history: list[ChatMessage],
+    api_key: str,
 ) -> str | None:
-    """Call Google Gemini API for multi-turn chat generation."""
-    api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
-    model = settings.DEFAULT_MODEL or "gemini-2.5-flash"
+    """Execute real multi-turn generation via Google Gemini 2.5 Flash."""
     if not api_key or len(api_key) < 10:
         return None
 
+    model = settings.DEFAULT_MODEL or "gemini-2.5-flash"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
     contents = []
-    for h in history[-6:]:
+    for h in history[-8:]:
         role = "user" if h.role == "user" else "model"
         contents.append({"role": role, "parts": [{"text": h.content}]})
 
@@ -83,12 +245,12 @@ async def _generate_gemini_chat_reply(
         "systemInstruction": {"parts": [{"text": system_instruction}]},
         "generationConfig": {
             "temperature": 0.35,
-            "maxOutputTokens": 1200,
+            "maxOutputTokens": 1400,
         },
     }
 
     try:
-        async with httpx.AsyncClient(timeout=14.0) as client:
+        async with httpx.AsyncClient(timeout=11.0) as client:
             response = await client.post(url, json=payload)
             if response.status_code == 200:
                 data = response.json()
@@ -97,411 +259,588 @@ async def _generate_gemini_chat_reply(
                     parts = candidates[0].get("content", {}).get("parts", [])
                     if parts:
                         return parts[0].get("text", "")
+            else:
+                logger.warning(f"Gemini API non-200 [{response.status_code}]: {response.text[:200]}")
     except Exception as e:
-        logger.warning(f"Gemini chat API call failed: {e}. Falling back to internal engine.")
+        logger.warning(f"Gemini chat API call failed: {e}. Activating autonomous semantic engine.")
 
     return None
 
 
-@router.post("", response_model=ChatResponse)
-@router.post("/gemini", response_model=ChatResponse)
-async def chat_with_gemini(
+@router.post("/user", response_model=ChatResponse)
+async def user_portal_chat(
     request: ChatRequest,
     db: AsyncSession = Depends(get_db),
 ) -> ChatResponse:
-    """Context-aware conversational assistant powered by Google Gemini and live campus telemetry."""
+    """Intelligent conversational AI for students, occupants, and campus members."""
     msg = request.message.strip()
     msg_lower = msg.lower()
+    user_phone = (request.user_phone or "").strip()
 
-    # 1. Fetch live database metrics
-    # Total Complaints
-    total_complaints_res = await db.execute(select(func.count(Complaint.id)))
-    total_complaints_count = total_complaints_res.scalar() or 0
-
-    # Active Complaints (not Resolved)
-    active_complaints_res = await db.execute(
-        select(func.count(Complaint.id)).where(Complaint.status != "Resolved")
-    )
-    active_complaints_count = active_complaints_res.scalar() or 0
-
-    # Resolved Complaints
-    resolved_complaints_res = await db.execute(
-        select(func.count(Complaint.id)).where(Complaint.status == "Resolved")
-    )
-    resolved_complaints_count = resolved_complaints_res.scalar() or 0
-
-    # Knowledge Base historical records
-    kb_records_res = await db.execute(select(func.count(MaintenanceRecord.id)))
-    kb_records_count = kb_records_res.scalar() or 0
-
-    # Total spend in Knowledge Base
-    total_spend_res = await db.execute(select(func.sum(MaintenanceRecord.estimated_cost)))
-    total_spend = total_spend_res.scalar() or 0
-
-    # Active work orders details
-    complaints_stmt = (
-        select(Complaint)
-        .where(Complaint.status != "Resolved")
-        .order_by(desc(Complaint.id))
-        .limit(6)
-    )
-    res_complaints = await db.execute(complaints_stmt)
-    active_complaints = res_complaints.scalars().all()
-
-    active_summary = []
-    for c in active_complaints:
-        active_summary.append(
-            f"• WO-{c.id:04d}: {c.equipment_type or 'Equipment'} at {c.location or 'Campus'} "
-            f"({c.severity or 'Medium'} severity, Status: {c.status or 'Active'}, Stage: {c.work_order_status or 'Triage'})"
-        )
-    active_ctx = "\n".join(active_summary) if active_summary else "• None (All active work orders resolved)."
-
-    # Equipment breakdown from maintenance records
-    eq_stmt = select(MaintenanceRecord.equipment_type, func.count(MaintenanceRecord.id)).group_by(
-        MaintenanceRecord.equipment_type
-    )
-    eq_res = await db.execute(eq_stmt)
-    eq_counts = dict(eq_res.all())
-
-    eq_summary = []
-    for eq, count in eq_counts.items():
-        eq_summary.append(f"• {eq}: {count} records")
-    eq_ctx = "\n".join(eq_summary) if eq_summary else "• Standard campus equipment catalog active."
-
-    # Fetch technician roster
-    techs_stmt = select(TechnicianStaff).limit(10)
-    res_techs = await db.execute(techs_stmt)
-    techs = res_techs.scalars().all()
-    tech_summary = [
-        f"• {t.name} ({t.role} - Status: {t.status}, Rate: ₹{t.per_job_rate}/job, Jobs Done: {t.total_jobs_completed})"
-        for t in techs
+    # 1. Fetch organization profile & categories
+    org_res = await db.execute(select(Organization).limit(1))
+    org = org_res.scalar_one_or_none()
+    org_name = org.name if org else "Campus Facility"
+    org_type = org.org_type if org else "Campus"
+    operating_hours = org.operating_hours if org else "24/7 Operations"
+    categories = json.loads(org.categories_json) if org and org.categories_json else [
+        "Air Conditioner", "Diesel Generator", "Elevator", "Classroom Projector",
+        "Water Pump", "RO Water Purifier", "Lighting & Electrical", "Plumbing"
     ]
-    tech_ctx = "\n".join(tech_summary) if tech_summary else "Technicians on call across HVAC, Electrical, Plumbing, AV/IT."
+    blocks = json.loads(org.blocks_json) if org and org.blocks_json else ["Main Campus", "Academic Block"]
 
-    # Retrieve relevant historical RAG cases from vector store
-    similar_cases = await retriever.retrieve_similar_cases(query=msg, top_k=3)
-    kb_summary = []
-    for sc in similar_cases:
-        kb_summary.append(
-            f"• Case #{sc.get('case_id')}: {sc.get('equipment_type')} - \"{sc.get('complaint')}\" -> Fix: {sc.get('recommended_fix')} (Cost: ₹{sc.get('estimated_cost')}, Time: {sc.get('repair_time')}h)"
+    # 2. Extract potential complaint draft
+    draft = extract_incident_draft(msg, categories, blocks)
+
+    # 3. Look up user's active/recent tickets
+    user_complaints: list[Complaint] = []
+    if user_phone:
+        stmt = (
+            select(Complaint)
+            .where(Complaint.reporter_phone == user_phone)
+            .order_by(desc(Complaint.id))
+            .limit(5)
         )
-    kb_ctx = "\n".join(kb_summary) if kb_summary else f"{kb_records_count} verified repair procedures indexed."
+        res = await db.execute(stmt)
+        user_complaints = list(res.scalars().all())
 
-    system_instruction = f"""You are FacilityMind Gemini AI — the intelligent campus infrastructure decision assistant.
-You help university faculty, facility managers, students, and technicians diagnose equipment failures, track active work orders, lookup repair costs, recommend specialists, and draft maintenance tickets.
+    user_tickets_ctx = ""
+    if user_complaints:
+        lines = [
+            f"• Ticket #{c.tracking_code or f'FM-{c.id:04d}'}: {c.equipment_type} at {c.location} | Status: {c.status} ({c.work_order_status})"
+            for c in user_complaints
+        ]
+        user_tickets_ctx = "\n".join(lines)
 
-CURRENT LIVE CAMPUS TELEMETRY & DATABASE COUNTS (REAL-TIME):
-• Total Submitted Complaints: {total_complaints_count}
-• Active / In-Progress Complaints: {active_complaints_count}
-• Completed / Resolved Complaints: {resolved_complaints_count}
-• Knowledge Base Verified Repair Records: {kb_records_count}
-• Total Historical Maintenance Outlay: ₹{total_spend:,}
+    # 4. Check for explicit tracking code in query
+    queried_complaint: Complaint | None = None
+    tcode_match = re.search(r"\b(fm-\d{4}|\b\d{1,4}\b)\b", msg_lower)
+    if tcode_match:
+        matched_str = tcode_match.group(1).upper()
+        if not matched_str.startswith("FM-"):
+            try:
+                cid = int(matched_str)
+                stmt = select(Complaint).where(Complaint.id == cid)
+            except ValueError:
+                stmt = select(Complaint).where(Complaint.tracking_code == matched_str)
+        else:
+            stmt = select(Complaint).where(Complaint.tracking_code == matched_str)
 
-[Active Open Work Orders]:
-{active_ctx}
+        q_res = await db.execute(stmt)
+        queried_complaint = q_res.scalar_one_or_none()
 
-[Equipment Breakdown in Knowledge Base]:
-{eq_ctx}
+    # 5. Build dynamic system instruction for Gemini
+    system_instruction = f"""You are the Student & Resident Facility Assistant for {org_name} ({org_type}).
+Operating Hours: {operating_hours}.
+Supported Equipment Categories: {', '.join(categories[:10])}.
+Campus Blocks: {', '.join(blocks[:6])}.
 
-[Staff & Available Technicians]:
-{tech_ctx}
+User's Existing Tickets:
+{user_tickets_ctx if user_tickets_ctx else 'No previous complaints filed with this phone number.'}
 
-[Top Retrieved Knowledge Base Precedents]:
-{kb_ctx}
-
-HOW THE 6-AGENT PIPELINE WORKS:
-1. Ingestion Agent: Validates raw complaints, normalizes equipment & campus location.
-2. Evidence Retrieval Agent (RAG): Queries FAISS vector store against {kb_records_count} historical repairs.
-3. Diagnostic Engine: Synthesizes symptoms to pinpoint root causes with confidence scoring.
-4. Cost & Labor Estimator: Computes parts pricing, turnaround time, and INR ₹ labor rates.
-5. Quality Verifier: Validates safety standards and electrical codes.
-6. Human-in-the-Loop: Allows facility admins and technicians to review, approve, and auto-dispatch work orders.
-
-HOW TO FILE A COMPLAINT (Step-by-Step):
-Step 1: Go to "File Complaint" tab (or ask me in chat to draft it).
-Step 2: Select equipment type (AC, Generator, Projector, Elevator, Plumbing, etc.) and location.
-Step 3: Describe symptoms and select urgency.
-Step 4: Click "Trigger AI Diagnostics" — our 6 autonomous LangGraph agents execute in sub-second time.
-Step 5: Review the Decision Report, approve human-in-the-loop review, and work order is dispatched to assigned technician!
-
-GUIDELINES:
-1. Provide structured, friendly, and authoritative advice with clear numbered steps, bullet points, and bold text.
-2. When asked about counts ("how many complaints", "check database", "how many are resolved"), quote the EXACT real-time numbers from above.
-3. For repair costs, always use Indian Rupee (₹) amounts.
-4. If the user describes a physical issue, propose drafting a complaint and provide diagnostic insights.
+SCOPE & BEHAVIOR RULES:
+1. Always be extremely polite, empathetic, structured, and helpful.
+2. If the user is describing a broken appliance or breakdown, validate their concern, summarize the issue clearly, and tell them you have created a one-click draft ticket for them.
+3. If the user asks about ticket progress, provide clear timeline details and status explanation.
+4. Format your response with clear Markdown (headers, bolding, bullet points).
+5. Never hallucinate internal manager salaries or private data of other people.
 """
 
-    # Try calling Google Gemini API
+    # 6. Try Gemini API
+    api_key = await _resolve_gemini_api_key(db)
     gemini_reply = await _generate_gemini_chat_reply(
         prompt=msg,
         system_instruction=system_instruction,
         history=request.history,
+        api_key=api_key,
     )
 
-    # Detect equipment intent to draft complaint
-    draft_data = None
-    suggested_actions = []
-
-    equipment_keywords = {
-        "ac": "Air Conditioner",
-        "air conditioner": "Air Conditioner",
-        "cooling": "Air Conditioner",
-        "generator": "Diesel Generator",
-        "diesel": "Diesel Generator",
-        "dg": "Diesel Generator",
-        "elevator": "Elevator",
-        "lift": "Elevator",
-        "projector": "Classroom Projector",
-        "screen": "Classroom Projector",
-        "pump": "Water Pump",
-        "water": "Water Pump",
-        "purifier": "RO Water Purifier",
-        "ro": "RO Water Purifier",
-        "plumbing": "Restroom / Washroom Plumbing",
-        "flush": "Restroom / Washroom Plumbing",
-        "pipe": "Restroom / Washroom Plumbing",
-        "tap": "Restroom / Washroom Plumbing",
-        "washroom": "Restroom / Washroom Plumbing",
-        "light": "Lighting & Electrical",
-        "electrical": "Lighting & Electrical",
-        "fan": "Lighting & Electrical",
-        "ups": "UPS System",
-        "inverter": "UPS System",
-        "battery": "UPS System",
-    }
-
-    detected_eq = None
-    for kw, eq_name in equipment_keywords.items():
-        if kw in msg_lower:
-            detected_eq = eq_name
-            break
-
-    if detected_eq:
-        location_guess = "Computer Lab 3" if "lab" in msg_lower else ("Library 2nd Floor" if "lib" in msg_lower else "Academic Block A")
-        urgency_guess = "High" if any(w in msg_lower for w in ["fire", "urgent", "emergency", "sparks", "smoke", "flood", "leak", "stopped"]) else "Medium"
-        draft_data = DraftComplaintData(
-            equipment_type=detected_eq,
-            equipment=detected_eq,
-            location=location_guess,
-            symptoms=msg,
-            raw_complaint=msg,
-            severity=urgency_guess,
-            urgency=urgency_guess,
-        )
+    suggested_actions: list[SuggestedAction] = []
+    if draft:
         suggested_actions.append(
             SuggestedAction(
-                label=f"📝 File Complaint for {detected_eq}",
+                label="📝 Apply Draft & Submit Ticket",
                 action_type="draft_complaint",
                 payload={
-                    "equipment_type": detected_eq,
-                    "location": location_guess,
-                    "severity": urgency_guess,
-                    "raw_complaint": msg,
+                    "equipment_type": draft.equipment_type,
+                    "location": draft.location,
+                    "severity": draft.severity,
+                    "raw_complaint": draft.raw_complaint,
+                    "building": draft.building,
+                    "floor": draft.floor,
+                    "room": draft.room,
                 },
             )
         )
 
-    # Standard navigational actions
-    suggested_actions.append(
-        SuggestedAction(
-            label="📊 Command Center",
-            action_type="navigate_tab",
-            payload={"tab": "dashboard"},
+    if queried_complaint:
+        suggested_actions.append(
+            SuggestedAction(
+                label=f"🔍 Track #{queried_complaint.tracking_code}",
+                action_type="track_ticket",
+                payload={"tracking_code": queried_complaint.tracking_code},
+            )
         )
+
+    suggested_actions.append(
+        SuggestedAction(label="🔍 Track My Tickets", action_type="navigate_tab", payload={"tab": "track"})
     )
     suggested_actions.append(
-        SuggestedAction(
-            label="📝 File New Complaint",
-            action_type="navigate_tab",
-            payload={"tab": "new-complaint"},
-        )
+        SuggestedAction(label="📝 Submit Complaint", action_type="navigate_tab", payload={"tab": "submit"})
     )
-    suggested_actions.append(
-        SuggestedAction(
-            label="📚 Knowledge Base",
-            action_type="navigate_tab",
-            payload={"tab": "history"},
+
+    if gemini_reply:
+        return ChatResponse(
+            reply=gemini_reply,
+            model="gemini-2.5-flash",
+            source="gemini",
+            suggested_actions=suggested_actions,
+            draft_complaint=draft,
+            complaint_draft=draft,
         )
+
+    # =========================================================================
+    # 7. AUTONOMOUS SEMANTIC INTENT ENGINE (When Gemini is offline/unconfigured)
+    # =========================================================================
+
+    # Scenario A: Explicit Ticket Lookup
+    if queried_complaint:
+        reply = (
+            f"### 📋 Live Status for #{queried_complaint.tracking_code or queried_complaint.id}\n\n"
+            f"• **Equipment**: `{queried_complaint.equipment_type}`\n"
+            f"• **Location**: **{queried_complaint.location}**\n"
+            f"• **Current Status**: **{queried_complaint.status}** (`{queried_complaint.work_order_status}`)\n"
+            f"• **Assigned Specialist**: {queried_complaint.assigned_technician_name or 'Under Triage Assignment'}\n"
+            f"• **Reported On**: {queried_complaint.created_at}\n"
+        )
+        if queried_complaint.public_resolution_notes:
+            reply += f"\n**Resolution Notes**: *{queried_complaint.public_resolution_notes}*\n"
+        reply += f"\nClick **'Track #{queried_complaint.tracking_code}'** below to view the full chronological timeline!"
+
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-engine",
+            source="campus_telemetry",
+            suggested_actions=suggested_actions,
+        )
+
+    # Scenario B: Incident / Breakdown Reporting Draft
+    if draft:
+        reply = (
+            f"### 📝 Prepared Complaint Ticket Draft\n\n"
+            f"I have detected your facility issue and prepared a ready-to-submit ticket:\n\n"
+            f"• **Equipment**: `{draft.equipment_type}`\n"
+            f"• **Identified Location**: **{draft.location}**\n"
+            f"• **Calculated Severity**: **{draft.severity}**\n"
+            f"• **Symptom Summary**: *\"{draft.raw_complaint}\"*\n\n"
+            f"👉 Click **'Apply Draft & Submit Ticket'** below to immediately fill the submission form and trigger 6-Agent AI diagnosis!"
+        )
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-engine",
+            source="incident_parser",
+            suggested_actions=suggested_actions,
+            draft_complaint=draft,
+            complaint_draft=draft,
+        )
+
+    # Scenario C: Inquiring about User's Own Tickets
+    if any(w in msg_lower for w in ["my complaint", "my ticket", "status", "track", "progress", "history", "check"]):
+        if user_complaints:
+            reply = f"### 🔍 Your Registered Tickets ({len(user_complaints)})\n\n"
+            for c in user_complaints:
+                reply += (
+                    f"• **#{c.tracking_code or c.id}** — `{c.equipment_type}` ({c.location}): "
+                    f"**{c.status}** (`{c.work_order_status}`)\n"
+                )
+            reply += "\nClick on any ticket in the **'Live Ticket Tracking'** tab for full audit history."
+        else:
+            reply = (
+                f"### 🔍 Ticket Tracking\n\n"
+                f"To track an existing issue:\n"
+                f"1. Switch to the **'Live Ticket Tracking'** tab.\n"
+                f"2. Enter your **Tracking Code** (e.g., `FM-0001`) or enter your phone number to view all your complaints.\n\n"
+                f"**Support Operating Hours:** {operating_hours}"
+            )
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-engine",
+            source="campus_telemetry",
+            suggested_actions=suggested_actions,
+        )
+
+    # Scenario D: Facility Info, Hours, Location
+    if any(w in msg_lower for w in ["hour", "time", "contact", "phone", "admin", "principal", "where", "location", "facility"]):
+        reply = (
+            f"### 🏛️ {org_name} Facility Overview\n\n"
+            f"• **Organization**: {org_name} ({org_type})\n"
+            f"• **Operating Hours**: **{operating_hours}**\n"
+            f"• **Primary Campus**: {org.primary_location if org else 'Main Campus'}, {org.city if org else ''}\n"
+            f"• **Facility Lead**: {org.admin_name if org else 'Director of Infrastructure'}\n"
+            f"• **Covered Equipment**: {', '.join(categories[:6])}, and more.\n\n"
+            f"Feel free to submit a complaint anytime if equipment is malfunctioning!"
+        )
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-engine",
+            source="org_knowledge",
+            suggested_actions=suggested_actions,
+        )
+
+    # Scenario E: General Welcome & Guidance
+    reply = (
+        f"### 👋 Welcome to {org_name} Facility Assistant!\n\n"
+        f"I am your automated facility support assistant. Here is what I can do:\n\n"
+        f"1. **Report a Breakdown**: Describe any problem (*e.g., \"Central AC in Science Wing 204 is leaking water\"*) and I will prepare a ticket draft for you.\n"
+        f"2. **Track a Ticket**: Provide your tracking code (*e.g., `FM-0001`*) to inspect real-time repair progress.\n"
+        f"3. **Campus Facility Guide**: Ask about support hours, equipment coverage, or maintenance policies.\n\n"
+        f"*How may I assist you today?*"
     )
-    suggested_actions.append(
-        SuggestedAction(
-            label="👷 View Technicians",
-            action_type="navigate_tab",
-            payload={"tab": "technicians"},
+    return ChatResponse(
+        reply=reply,
+        model="facilitymind-semantic-engine",
+        source="default_guide",
+        suggested_actions=suggested_actions,
+    )
+
+
+@router.post("/admin", response_model=ChatResponse)
+@router.post("", response_model=ChatResponse)
+@router.post("/gemini", response_model=ChatResponse)
+async def admin_portal_chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+) -> ChatResponse:
+    """Executive facility management AI co-pilot for administrators and operations directors."""
+    msg = request.message.strip()
+    msg_lower = msg.lower()
+
+    # 1. Fetch live telemetry
+    total_complaints_res = await db.execute(select(func.count(Complaint.id)))
+    total_complaints_count = total_complaints_res.scalar() or 0
+
+    active_complaints_res = await db.execute(
+        select(func.count(Complaint.id)).where(Complaint.status.not_in(["RESOLVED", "CLOSED", "Resolved"]))
+    )
+    active_complaints_count = active_complaints_res.scalar() or 0
+
+    resolved_complaints_res = await db.execute(
+        select(func.count(Complaint.id)).where(Complaint.status.in_(["RESOLVED", "CLOSED", "Resolved"]))
+    )
+    resolved_complaints_count = resolved_complaints_res.scalar() or 0
+
+    critical_res = await db.execute(
+        select(func.count(Complaint.id)).where(Complaint.severity.in_(["Critical", "High"]))
+    )
+    critical_count = critical_res.scalar() or 0
+
+    kb_records_res = await db.execute(select(func.count(MaintenanceRecord.id)))
+    kb_records_count = kb_records_res.scalar() or 0
+
+    total_spend_res = await db.execute(select(func.sum(Complaint.total_actual_cost)))
+    total_spend = total_spend_res.scalar() or 0
+
+    equipment_count_res = await db.execute(select(func.count(Equipment.id)))
+    equipment_count = equipment_count_res.scalar() or 0
+
+    # Active work orders details
+    complaints_stmt = (
+        select(Complaint)
+        .options(selectinload(Complaint.timeline_events))
+        .where(Complaint.status.not_in(["RESOLVED", "CLOSED", "Resolved"]))
+        .order_by(desc(Complaint.id))
+        .limit(8)
+    )
+    res_complaints = await db.execute(complaints_stmt)
+    active_complaints = list(res_complaints.scalars().all())
+
+    active_summary = []
+    for c in active_complaints:
+        active_summary.append(
+            f"• #{c.tracking_code or f'FM-{c.id:04d}'}: {c.equipment_type or 'Equipment'} at {c.location or 'Campus'} "
+            f"[{c.severity or 'Medium'}] — Status: {c.status} ({c.work_order_status})"
         )
+    active_ctx = "\n".join(active_summary) if active_summary else "• None (All active work orders resolved)."
+
+    # Technician roster
+    techs_stmt = select(TechnicianStaff).limit(10)
+    res_techs = await db.execute(techs_stmt)
+    techs = list(res_techs.scalars().all())
+    tech_summary = [
+        f"• {t.name} ({t.role} - Status: {t.status}, Rate: ₹{t.per_job_rate}/job, Completed: {t.total_jobs_completed}, Earnings: ₹{t.total_earnings})"
+        for t in techs
+    ]
+    tech_ctx = "\n".join(tech_summary) if tech_summary else "No technicians registered in the roster yet."
+
+    # RAG matches if query mentions equipment/repairs
+    similar_cases = await retriever.retrieve_similar_cases(query=msg, top_k=3)
+    kb_summary = []
+    for sc in similar_cases:
+        kb_summary.append(
+            f"• Case #{sc.get('case_id')}: {sc.get('equipment_type')} - \"{sc.get('complaint')}\" -> Fix: {sc.get('recommended_fix')} (Cost: ₹{sc.get('estimated_cost')})"
+        )
+    kb_ctx = "\n".join(kb_summary) if kb_summary else f"{kb_records_count} verified repair procedures indexed."
+
+    # Check for complaint draft in admin prompt
+    draft = extract_incident_draft(msg)
+
+    # Suggested actions
+    suggested_actions = [
+        SuggestedAction(label="📊 Command Center", action_type="navigate_tab", payload={"tab": "dashboard"}),
+        SuggestedAction(label="👷 Technician Roster", action_type="navigate_tab", payload={"tab": "technicians"}),
+        SuggestedAction(label="📈 Cost Analytics", action_type="navigate_tab", payload={"tab": "analytics"}),
+        SuggestedAction(label="📚 Knowledge Base", action_type="navigate_tab", payload={"tab": "history"}),
+        SuggestedAction(label="⚙️ System Diagnostics", action_type="navigate_tab", payload={"tab": "health"}),
+    ]
+
+    if draft:
+        suggested_actions.insert(
+            0,
+            SuggestedAction(
+                label="📝 Draft Work Order",
+                action_type="draft_complaint",
+                payload={
+                    "equipment_type": draft.equipment_type,
+                    "location": draft.location,
+                    "severity": draft.severity,
+                    "raw_complaint": draft.raw_complaint,
+                },
+            ),
+        )
+
+    # 2. Try Gemini API
+    system_instruction = f"""You are FacilityMind Admin AI Copilot — the executive facility decision intelligence assistant.
+You assist facility managers, directors, and operations staff with workload balancing, cost analytics, recurring equipment hotspot identification, technician dispatches, and SLA adherence.
+
+LIVE DATABASE TELEMETRY:
+• Total Registered Complaints: {total_complaints_count}
+• Active / Pending Complaints: {active_complaints_count}
+• Resolved / Closed Complaints: {resolved_complaints_count}
+• Critical & High Severity: {critical_count}
+• Registered Equipment Assets: {equipment_count}
+• Knowledge Base Verified Repair Records: {kb_records_count}
+• Total Actual Repair Spend: ₹{total_spend:,}
+
+[Active Open Complaints]:
+{active_ctx}
+
+[Technician Operations Roster]:
+{tech_ctx}
+
+[Top Retrieved Historical Precedents]:
+{kb_ctx}
+
+Provide executive-level, data-backed insights with clear recommendations, numbers, and structured Markdown tables or bullet points.
+"""
+
+    api_key = await _resolve_gemini_api_key(db)
+    gemini_reply = await _generate_gemini_chat_reply(
+        prompt=msg,
+        system_instruction=system_instruction,
+        history=request.history,
+        api_key=api_key,
     )
 
     grounded_ctx = {
         "total_complaints": total_complaints_count,
         "active_work_orders": active_complaints_count,
         "resolved_work_orders": resolved_complaints_count,
+        "critical_count": critical_count,
         "kb_records_count": kb_records_count,
         "total_spend": total_spend,
         "available_technicians": len(techs),
-        "rag_matches": len(similar_cases),
+        "equipment_count": equipment_count,
     }
 
     if gemini_reply:
         return ChatResponse(
             reply=gemini_reply,
             model="gemini-2.5-flash",
-            model_used="gemini-2.5-flash",
             source="gemini",
             grounded_context=grounded_ctx,
             suggested_actions=suggested_actions,
-            draft_complaint=draft_data,
-            complaint_draft=draft_data,
+            draft_complaint=draft,
+            complaint_draft=draft,
         )
 
     # =========================================================================
-    # High-Intelligence Grounded Rule-Based Engine (Fallback for 100/100 Offline)
+    # 3. AUTONOMOUS SEMANTIC INTENT ENGINE FOR ADMIN COPILOT
     # =========================================================================
-    resolution_rate = f"{(resolved_complaints_count / total_complaints_count * 100):.1f}%" if total_complaints_count > 0 else "100%"
 
-    # Intent 1: "How to file a complaint" / "How to use" / "Guide" / "Help"
-    if any(w in msg_lower for w in ["how to file", "how do i file", "file a complaint", "how to use", "guide", "beginner", "steps to", "what to do"]):
+    # Scenario A: Statistics, Metrics & Overview
+    if any(w in msg_lower for w in ["how many", "count", "metrics", "stats", "overview", "total", "summary", "numbers"]):
         reply = (
-            "### 📋 How to File a Maintenance Complaint (Step-by-Step)\n\n"
-            "Filing a complaint on **FacilityMind AI** is fast, simple, and automated:\n\n"
-            "1. **Navigate to 'File Complaint'**:\n"
-            "   • Click the **'File Complaint'** tab in the top navigation bar (or click the button below).\n\n"
-            "2. **Fill in Basic Equipment Details**:\n"
-            "   • **Equipment Type**: Select your damaged unit (*Air Conditioner, Diesel Generator, Elevator, Projector, Restroom Plumbing, etc.*).\n"
-            "   • **Location**: Choose where the fault is located (*e.g. Computer Lab 3, Library, Academic Block*).\n"
-            "   • **Urgency/Severity**: Set priority (*Low, Medium, High, or Critical*).\n\n"
-            "3. **Describe the Problem**:\n"
-            "   • Enter the symptoms (*e.g. 'AC blowing warm air and making a rattling sound'*).\n\n"
-            "4. **Click 'Trigger AI Diagnostics'**:\n"
-            "   • Our **6-Agent LangGraph Pipeline** automatically executes in real-time.\n"
-            "   • It matches against **265+ verified repair cases**, determines the exact root cause, calculates repair cost in ₹ INR, and estimates completion hours.\n\n"
-            "5. **Review & Human Approval**:\n"
-            "   • You are taken to the **Decision Report**.\n"
-            "   • Review the diagnosis, verify accuracy, approve the Human-in-the-Loop protocol, and the work order is automatically dispatched to the specialized technician!\n\n"
-            "💡 *Tip: You can also just tell me your problem here in chat, and I will auto-generate the ticket draft for you!*"
+            f"### 📊 Facility Operations Telemetry Overview\n\n"
+            f"| Metric | Live Value | Status |\n"
+            f"| :--- | :--- | :--- |\n"
+            f"| **Total Complaints** | **{total_complaints_count}** | Lifetime logged |\n"
+            f"| **Active Backlog** | **{active_complaints_count}** | {('Action Required' if active_complaints_count > 0 else 'Optimal')} |\n"
+            f"| **Resolved Tickets** | **{resolved_complaints_count}** | Verified complete |\n"
+            f"| **Critical / High Priority** | **{critical_count}** | {('⚠️ Needs Attention' if critical_count > 0 else 'All Clear')} |\n"
+            f"| **Active Technicians** | **{len(techs)}** | On roster |\n"
+            f"| **Total Managed Spend** | **₹{total_spend:,}** | Labor & Parts Settlement |\n\n"
+            f"**Current Pipeline Queue:**\n{active_ctx}"
         )
-
-    # Intent 2: "How many complaints" / "Database count" / "Check database" / "Stats"
-    elif any(w in msg_lower for w in ["how many complaint", "how many active", "check database", "how many are there", "total complaint", "database status", "check the database", "how many over", "how many resolved", "number of complaint"]):
-        reply = (
-            "### 📊 Live Campus Telemetry & Database Status\n\n"
-            f"Here is the real-time breakdown from our SQLite database & Knowledge Base:\n\n"
-            f"• **Total Submitted Complaints**: **{total_complaints_count}**\n"
-            f"• **Active / Open Work Orders**: **{active_complaints_count}**\n"
-            f"• **Completed / Resolved Work Orders**: **{resolved_complaints_count}** (Resolution Rate: **{resolution_rate}**)\n"
-            f"• **Knowledge Base Verified Procedures**: **{kb_records_count} cases**\n"
-            f"• **Total Historical Maintenance Outlay**: **₹{total_spend:,}**\n\n"
-            f"**Current Open Work Orders in Pipeline:**\n"
-            f"{active_ctx}\n\n"
-            f"**Indexed Equipment Breakdown:**\n"
-            f"{eq_ctx}\n\n"
-            "All data is synchronized with sub-50ms latency."
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-admin",
+            source="live_telemetry",
+            grounded_context=grounded_ctx,
+            suggested_actions=suggested_actions,
         )
 
-    # Intent 3: "How does the algorithm / AI work" / "Explain agents" / "LangGraph"
-    elif any(w in msg_lower for w in ["algorithm", "agent", "langgraph", "workflow", "how does it work", "architecture", "6 agent", "pipeline"]):
+    # Scenario B: Financial, Cost, and Outlay Analysis
+    if any(w in msg_lower for w in ["cost", "spend", "money", "budget", "finance", "expense", "rupees", "inr"]):
+        avg_spend = round(total_spend / max(resolved_complaints_count, 1))
         reply = (
-            "### 🤖 The 6-Agent LangGraph Multi-Agent Architecture\n\n"
-            "FacilityMind operates an autonomous **StateGraph multi-agent pipeline**:\n\n"
-            "1. **Triage & Ingestion Agent**: Normalizes raw textual complaints, extracts equipment entities, and assigns preliminary severity levels.\n"
-            f"2. **Evidence Retrieval Agent (RAG)**: Uses FAISS vector search across **{kb_records_count} historical cases** to retrieve top-3 most similar precedents.\n"
-            "3. **Diagnostic Engine Agent**: Synthesizes fault symptoms and historical data to identify the exact root cause with confidence ratings.\n"
-            "4. **Cost, Labor & SLA Estimator**: Computes material cost, required labor hours, and matches certified technicians with dynamic ₹ pricing.\n"
-            "5. **Safety & Quality Verifier**: Audits the diagnosis against electrical and physical safety standards.\n"
-            "6. **Human-in-the-Loop (HITL) & Feedback Agent**: Enables facility admins to inspect, rate accuracy, and feeds verified fixes back into the Knowledge Base for continuous learning."
+            f"### 💰 Financial & Expenditure Intelligence\n\n"
+            f"• **Total Recorded Spend**: **₹{total_spend:,}**\n"
+            f"• **Average Cost per Resolved Incident**: **₹{avg_spend:,}**\n"
+            f"• **Resolved Incidents Settled**: **{resolved_complaints_count}**\n"
+            f"• **Active Unsettled Backlog**: **{active_complaints_count} work orders**\n\n"
+            f"**Cost Optimization Insight**:\n"
+            f"Technicians settle labor and replacement parts upon complaint resolution. All amounts are audited against historical RAG benchmarks to prevent vendor inflation.\n\n"
+            f"Click **'Cost Analytics'** below to view monthly burn rates and category breakdowns."
+        )
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-admin",
+            source="financial_engine",
+            grounded_context=grounded_ctx,
+            suggested_actions=suggested_actions,
         )
 
-    # Intent 4: "Technicians" / "Who can fix" / "Staff" / "Rates" / "Salary"
-    elif any(w in msg_lower for w in ["technician", "staff", "who can fix", "worker", "salary", "labor", "rates", "plumber", "electrician"]):
-        reply = (
-            "### 👷 Campus Maintenance Specialist Roster\n\n"
-            "Our facility operations team includes certified on-call specialists:\n\n"
-            f"{tech_ctx}\n\n"
-            "• **Auto-Assignment**: When a complaint is filed, the AI assigns the specialist whose trade and availability best match the fault.\n"
-            "• **Payout Tracking**: Manage jobs and view earnings in the **Staff & Payouts** tab."
+    # Scenario C: Technician Roster & Staff Management
+    if any(w in msg_lower for w in ["technician", "staff", "worker", "roster", "labor", "who is available", "rate"]):
+        if techs:
+            reply = f"### 👷 Active Technician Roster ({len(techs)})\n\n"
+            reply += "| Technician Name | Trade / Specialty | Status | Rate / Job | Jobs Done | Total Earnings |\n"
+            reply += "| :--- | :--- | :--- | :--- | :--- | :--- |\n"
+            for t in techs:
+                reply += f"| **{t.name}** | {t.role} | `{t.status}` | ₹{t.per_job_rate} | {t.total_jobs_completed} | ₹{t.total_earnings:,} |\n"
+            reply += "\nClick **'Technician Roster'** below to add staff or assign pending work orders."
+        else:
+            reply = (
+                "### 👷 Technician Management\n\n"
+                "Currently, there are **0 technicians** registered in the database.\n"
+                "You can add on-duty technicians and contractors via the **'Staff & Payouts'** tab."
+            )
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-admin",
+            source="roster_engine",
+            grounded_context=grounded_ctx,
+            suggested_actions=suggested_actions,
         )
 
-    # Intent 5: Specific Equipment Failures
-    elif any(w in msg_lower for w in ["ac", "air condition", "cooling", "warm"]):
-        ac_count = eq_counts.get("Air Conditioner", 65)
-        reply = (
-            "### ❄️ Air Conditioner Failure Diagnostic\n\n"
-            f"Based on **{ac_count} historical AC maintenance records**:\n"
-            "• **Most Common Root Cause**: Clogged condenser coil or failed dual-run capacitor (45µF).\n"
-            "• **Estimated Repair Cost**: **₹1,800 – ₹3,200**\n"
-            "• **Average Repair Time**: **1.2 Hours**\n"
-            "• **Recommended Fix**: Discharge & replace 45µF run capacitor; power wash outdoor condenser fins.\n"
-            "• **Assigned Specialist**: **Senior HVAC Specialist** (e.g. Ramesh Kumar)\n\n"
-            "Click **'File Complaint for Air Conditioner'** below to generate an automated work order!"
+    # Scenario D: Critical & Urgent Issues
+    if any(w in msg_lower for w in ["critical", "urgent", "emergency", "backlog", "pending", "high priority"]):
+        critical_complaints = [c for c in active_complaints if c.severity in ["Critical", "High"]]
+        if critical_complaints:
+            reply = f"### 🚨 High-Priority / Critical Backlog ({len(critical_complaints)})\n\n"
+            for c in critical_complaints:
+                reply += (
+                    f"• **#{c.tracking_code or c.id}** — `{c.equipment_type}` at **{c.location}**\n"
+                    f"  - Severity: **{c.severity}** | Stage: `{c.work_order_status}`\n"
+                    f"  - Assigned: {c.assigned_technician_name or '⚠️ Needs Dispatch'}\n"
+                    f"  - Reported: {c.created_at}\n\n"
+                )
+            reply += "Immediate technician dispatch is recommended for all critical hazards."
+        else:
+            reply = (
+                f"### ✅ Priority Queue Clean\n\n"
+                f"There are currently **0 critical or high-severity** unresolved incidents in the backlog.\n"
+                f"Total active tickets: **{active_complaints_count}**"
+            )
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-admin",
+            source="triage_engine",
+            grounded_context=grounded_ctx,
+            suggested_actions=suggested_actions,
         )
-    elif any(w in msg_lower for w in ["generator", "dg", "diesel"]):
-        dg_count = eq_counts.get("Diesel Generator", 37)
+
+    # Scenario E: Incident / Work Order Draft
+    if draft:
         reply = (
-            "### ⚡ Diesel Generator Diagnostic\n\n"
-            f"Based on **{dg_count} historical DG failure precedents**:\n"
-            "• **Root Cause**: Low starter battery terminal voltage (<12.2V) or dirty fuel filter solenoid valve.\n"
-            "• **Estimated Cost**: **₹4,500 – ₹5,800**\n"
-            "• **Safety Requirement**: Disconnect manual transfer switch before starter motor inspection.\n"
-            "• **Assigned Specialist**: **Master Electrician / Power Yard Engineer**\n\n"
-            "Click below to draft an urgent work order."
+            f"### 📝 Work Order Draft Generated\n\n"
+            f"• **Equipment**: `{draft.equipment_type}`\n"
+            f"• **Target Location**: **{draft.location}**\n"
+            f"• **Severity**: **{draft.severity}**\n"
+            f"• **Issue Narrative**: *\"{draft.raw_complaint}\"*\n\n"
+            f"Click **'Draft Work Order'** below to load this into the intake form and run the multi-agent diagnostic engine."
         )
-    elif any(w in msg_lower for w in ["elevator", "lift"]):
-        elev_count = eq_counts.get("Elevator", 28)
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-admin",
+            source="incident_parser",
+            grounded_context=grounded_ctx,
+            suggested_actions=suggested_actions,
+            draft_complaint=draft,
+            complaint_draft=draft,
+        )
+
+    # Scenario F: Multi-Agent AI Workflow Explanation
+    if any(w in msg_lower for w in ["agent", "langgraph", "workflow", "how it works", "pipeline", "architecture", "ai"]):
         reply = (
-            "### 🛗 Elevator Infrastructure Triage\n\n"
-            f"Based on **{elev_count} historical elevator incidents**:\n"
-            "• **Root Cause**: Optical safety curtain misalignment or debris in floor runner tracks.\n"
-            "• **Estimated Cost**: **₹2,800 – ₹4,200**\n"
-            "• **Turnaround**: **1.5 Hours**\n"
-            "• **Assigned Specialist**: **Elevator Automation Engineer**\n\n"
-            "Click below to initiate high-priority dispatch."
+            "### 🤖 FacilityMind 6-Agent LangGraph Architecture\n\n"
+            "When a complaint is submitted, it is processed through 6 autonomous nodes:\n\n"
+            "1. **Analyzer Agent**: Extracts equipment type, building, room, symptom taxonomy, and severity.\n"
+            "2. **Retrieval Agent**: Queries the vector index in <50ms for the top historical repair precedents.\n"
+            "3. **Diagnosis Agent**: Synthesizes symptoms with historical evidence via Google Gemini 2.5 Flash.\n"
+            "4. **Recommendation Agent**: Prescribes numbered repair steps, required spare parts, diagnostic tools, and cost bounds in ₹ INR.\n"
+            "5. **Explanation Agent**: Generates transparent, human-readable rationale for executive review.\n"
+            "6. **Validation Supervisor**: Verifies safety bounds, cost sanity, and dispatches real-time WebSocket events."
         )
-    elif any(w in msg_lower for w in ["projector", "screen", "hdmi", "display"]):
-        proj_count = eq_counts.get("Classroom Projector", 35)
-        reply = (
-            "### 📽️ Classroom Projector Diagnostic\n\n"
-            f"Based on **{proj_count} historical classroom projector records**:\n"
-            "• **Root Cause**: Exhaust fan thermal cutout triggered due to dust-clogged HEPA air filter.\n"
-            "• **Estimated Cost**: **₹950 – ₹1,800**\n"
-            "• **Turnaround**: **45 Minutes**\n"
-            "• **Assigned Specialist**: **AV / IT Hardware Technician**\n\n"
-            "Click below to file a classroom maintenance request."
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-admin",
+            source="architecture_knowledge",
+            grounded_context=grounded_ctx,
+            suggested_actions=suggested_actions,
         )
-    elif any(w in msg_lower for w in ["plumbing", "flush", "water", "leak", "washroom", "restroom", "toilet"]):
-        plumb_count = eq_counts.get("Restroom / Washroom Plumbing", 40)
-        reply = (
-            "### 🚿 Restroom & Plumbing Diagnostic\n\n"
-            f"Based on **{plumb_count} historical plumbing records**:\n"
-            "• **Root Cause**: Worn dual-flush diaphragm seal or degraded inlet ball valve float.\n"
-            "• **Estimated Cost**: **₹650 – ₹1,400**\n"
-            "• **Turnaround**: **1.0 Hour**\n"
-            "• **Assigned Specialist**: **Master Plumber** (e.g. Suresh Patel)\n\n"
-            "Click below to create a quick plumbing repair ticket."
+
+    # Scenario G: Knowledge Base & Historical Cases
+    if any(w in msg_lower for w in ["knowledge base", "precedent", "historical", "similar", "past fix", "solution"]):
+        if similar_cases:
+            reply = f"### 📚 Top Matching Historical Precedents ({len(similar_cases)})\n\n"
+            for sc in similar_cases:
+                reply += (
+                    f"• **Case #{sc.get('case_id')}** (`{sc.get('equipment_type')}`):\n"
+                    f"  - Complaint: *\"{sc.get('complaint')}\"*\n"
+                    f"  - Fix: {sc.get('recommended_fix')}\n"
+                    f"  - Estimated Cost: **₹{sc.get('estimated_cost')}**\n\n"
+                )
+        else:
+            reply = (
+                f"### 📚 Facility Knowledge Base\n\n"
+                f"The system contains **{kb_records_count} indexed repair procedures**.\n"
+                f"You can search or contribute new precedent cases in the **'Knowledge Base'** tab."
+            )
+        return ChatResponse(
+            reply=reply,
+            model="facilitymind-semantic-admin",
+            source="rag_engine",
+            grounded_context=grounded_ctx,
+            suggested_actions=suggested_actions,
         )
-    else:
-        reply = (
-            f"### 🤖 FacilityMind AI Copilot\n\n"
-            f"I have received your query: *\"{msg}\"*\n\n"
-            f"**Campus Telemetry Snapshot:**\n"
-            f"• **Active Work Orders**: {active_complaints_count}\n"
-            f"• **Resolved Tickets**: {resolved_complaints_count}\n"
-            f"• **Knowledge Base Precedents**: {kb_records_count} indexed cases\n"
-            f"• **Specialist Technicians**: {len(techs)} available\n\n"
-            "**What would you like to do?**\n"
-            "1. Ask **'How do I file a complaint?'** for a step-by-step walkthrough.\n"
-            "2. Ask **'How many complaints are in the database?'** for live metrics.\n"
-            "3. Ask **'Explain the 6-agent AI pipeline'** for multi-agent system details.\n"
-            "4. Describe any broken equipment (AC, generator, elevator, plumbing) to auto-draft a ticket!"
-        )
+
+    # Default Executive Briefing
+    reply = (
+        f"### 🛡️ Facility Operations Executive Briefing\n\n"
+        f"• **Total Tickets Logged**: **{total_complaints_count}**\n"
+        f"• **Active Backlog**: **{active_complaints_count} open**\n"
+        f"• **Resolved Tickets**: **{resolved_complaints_count}**\n"
+        f"• **Total Recorded Spend**: **₹{total_spend:,}**\n"
+        f"• **Staff Roster**: **{len(techs)} technicians**\n\n"
+        f"**Active Queue Snapshot:**\n{active_ctx}\n\n"
+        f"*Ask me to query specific equipment, draft a work order, audit expenses, or inspect technician availability!*"
+    )
 
     return ChatResponse(
         reply=reply,
-        model="facilitymind-gemini-agent",
-        model_used="facilitymind-gemini-agent",
-        source="grounded_rules",
+        model="facilitymind-semantic-admin",
+        source="executive_overview",
         grounded_context=grounded_ctx,
         suggested_actions=suggested_actions,
-        draft_complaint=draft_data,
-        complaint_draft=draft_data,
     )
-
-

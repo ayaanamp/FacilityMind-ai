@@ -239,6 +239,17 @@ export const SimilarCasesView: React.FC<SimilarCasesViewProps> = ({
         })}
       </div>
 
+      {/* Empty State when no cases found */}
+      {cases.length === 0 && !loading && !error && (
+        <div className="py-12 flex flex-col items-center justify-center text-center p-8 border border-dashed border-zinc-800 rounded-xl bg-zinc-950/40 font-mono">
+          <Database className="h-10 w-10 text-zinc-700 mb-3" />
+          <h3 className="text-sm font-bold text-zinc-300">No Semantic Precedents Found</h3>
+          <p className="text-xs text-zinc-500 mt-1 max-w-md">
+            No historical engineering cases matched "{query}". Try searching broader failure terms, error codes, or switch equipment filter to "All Equipment".
+          </p>
+        </div>
+      )}
+
       {/* Case Details Inspection Modal */}
       {selectedCase && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">

@@ -32,6 +32,7 @@ export const ResolveWorkOrderModal: React.FC<ResolveWorkOrderModalProps> = ({
   const [selectedTechId, setSelectedTechId] = useState<number | ''>('');
   const [laborCost, setLaborCost] = useState<number>(850);
   const [partsCost, setPartsCost] = useState<number>(450);
+  const [otherCost, setOtherCost] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [fetchingTechs, setFetchingTechs] = useState<boolean>(false);
@@ -66,6 +67,7 @@ export const ResolveWorkOrderModal: React.FC<ResolveWorkOrderModalProps> = ({
     const est = workOrder.estimated_cost || 1500;
     setLaborCost(Math.round(est * 0.45));
     setPartsCost(Math.round(est * 0.55));
+    setOtherCost(0);
     setNotes(`Completed maintenance on ${workOrder.equipment_type} at ${workOrder.location}. Verified functional.`);
   }, [isOpen, workOrder]);
 
@@ -81,7 +83,7 @@ export const ResolveWorkOrderModal: React.FC<ResolveWorkOrderModalProps> = ({
   };
 
   const selectedTech = technicians.find((t) => t.id === selectedTechId);
-  const totalActualCost = Number(laborCost || 0) + Number(partsCost || 0);
+  const totalActualCost = Number(laborCost || 0) + Number(partsCost || 0) + Number(otherCost || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +100,7 @@ export const ResolveWorkOrderModal: React.FC<ResolveWorkOrderModalProps> = ({
         assigned_technician_name: selectedTech?.name || 'Assigned Technician',
         labor_cost: Number(laborCost || 0),
         parts_cost: Number(partsCost || 0),
+        other_cost: Number(otherCost || 0),
         notes,
       });
 
@@ -196,13 +199,13 @@ export const ResolveWorkOrderModal: React.FC<ResolveWorkOrderModalProps> = ({
             )}
           </div>
 
-          {/* Money Management: Labor Fee + Replacement Parts */}
-          <div className="grid grid-cols-2 gap-3 p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800">
+          {/* Money Management: Labor Fee + Replacement Parts + Other Outlay */}
+          <div className="grid grid-cols-3 gap-3 p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800">
             {/* Labor Payout */}
             <div className="space-y-1">
               <label className="font-semibold text-zinc-300 flex items-center gap-1">
                 <Banknote className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Worker Labor Fee (₹) *</span>
+                <span>Worker Labor (₹) *</span>
               </label>
               <div className="relative">
                 <span className="absolute left-2.5 top-2 text-zinc-500 text-xs">₹</span>
@@ -212,17 +215,17 @@ export const ResolveWorkOrderModal: React.FC<ResolveWorkOrderModalProps> = ({
                   required
                   value={laborCost}
                   onChange={(e) => setLaborCost(Number(e.target.value))}
-                  className="w-full rounded-md border border-zinc-700 bg-black pl-6 pr-3 py-2 text-white focus:outline-none focus:border-emerald-400 text-xs font-mono"
+                  className="w-full rounded-md border border-zinc-700 bg-black pl-6 pr-2 py-2 text-white focus:outline-none focus:border-emerald-400 text-xs font-mono"
                 />
               </div>
-              <span className="text-[10px] text-zinc-500 block">Credited to worker salary balance</span>
+              <span className="text-[10px] text-zinc-500 block">Worker payout</span>
             </div>
 
             {/* Parts / Hardware Material Cost */}
             <div className="space-y-1">
               <label className="font-semibold text-zinc-300 flex items-center gap-1">
                 <Wrench className="h-3.5 w-3.5 text-sky-400" />
-                <span>Parts & Materials (₹)</span>
+                <span>Parts/Materials (₹)</span>
               </label>
               <div className="relative">
                 <span className="absolute left-2.5 top-2 text-zinc-500 text-xs">₹</span>
@@ -231,10 +234,29 @@ export const ResolveWorkOrderModal: React.FC<ResolveWorkOrderModalProps> = ({
                   min="0"
                   value={partsCost}
                   onChange={(e) => setPartsCost(Number(e.target.value))}
-                  className="w-full rounded-md border border-zinc-700 bg-black pl-6 pr-3 py-2 text-white focus:outline-none focus:border-sky-400 text-xs font-mono"
+                  className="w-full rounded-md border border-zinc-700 bg-black pl-6 pr-2 py-2 text-white focus:outline-none focus:border-sky-400 text-xs font-mono"
                 />
               </div>
-              <span className="text-[10px] text-zinc-500 block">Hardware / consumable outlay</span>
+              <span className="text-[10px] text-zinc-500 block">Hardware cost</span>
+            </div>
+
+            {/* Other / Misc Cost */}
+            <div className="space-y-1">
+              <label className="font-semibold text-zinc-300 flex items-center gap-1">
+                <IndianRupee className="h-3.5 w-3.5 text-amber-400" />
+                <span>Other / Misc (₹)</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-2 text-zinc-500 text-xs">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={otherCost}
+                  onChange={(e) => setOtherCost(Number(e.target.value))}
+                  className="w-full rounded-md border border-zinc-700 bg-black pl-6 pr-2 py-2 text-white focus:outline-none focus:border-amber-400 text-xs font-mono"
+                />
+              </div>
+              <span className="text-[10px] text-zinc-500 block">Transport / misc</span>
             </div>
           </div>
 
@@ -243,7 +265,7 @@ export const ResolveWorkOrderModal: React.FC<ResolveWorkOrderModalProps> = ({
             <div>
               <span className="text-[11px] text-zinc-400 uppercase tracking-wider block">Grand Total Job Spend</span>
               <span className="text-[10px] text-zinc-500 font-mono">
-                Labor ₹{laborCost} + Parts ₹{partsCost}
+                Labor ₹{laborCost} + Parts ₹{partsCost} + Other ₹{otherCost}
               </span>
             </div>
             <div className="text-right">

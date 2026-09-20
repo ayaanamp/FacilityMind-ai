@@ -1,358 +1,424 @@
-# 🏛️ FacilityMind AI — Autonomous Multi-Agent Campus & Facility Decision Intelligence
+# 🏛️ FacilityMind AI — Autonomous Multi-Agent Facility & Infrastructure Decision Platform
 
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%200.115-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/Frontend-React%2018%20+%20Vite-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/Language-TypeScript%205.5-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Python](https://img.shields.io/badge/Language-Python%203.10+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org)
 [![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph%200.2-FF6F00.svg)](https://langchain-ai.github.io/langgraph/)
 [![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini%202.5%20Flash-4285F4.svg?logo=google&logoColor=white)](https://ai.google.dev/)
 [![SQLite](https://img.shields.io/badge/Database-SQLite%20+%20AsyncSQLAlchemy-003B57.svg?logo=sqlite&logoColor=white)](https://sqlite.org)
 [![TailwindCSS](https://img.shields.io/badge/Design-Minimalist%20Obsidian%20UI-000000.svg?logo=tailwindcss&logoColor=38BDF8)](https://tailwindcss.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Build Status](https://img.shields.io/badge/Tests-100%25%20Passing-brightgreen.svg)]()
 
 > **From Ambiguous Facility Breakdown to Evidence-Backed Decision in Under 2 Seconds.**  
-> *Autonomous 6-Agent LangGraph Pipeline · Sub-50ms Cosine RAG Vector Retrieval · Closed-Loop Technician Learning · Enterprise ₹ INR Cost & Labor Settlement*
+> *Autonomous 6-Agent LangGraph Pipeline · Real-Time Dual WebSocket / SSE Synchronization · Dynamic Organization Onboarding · Zero Preloaded Data on Fresh Clone · Multi-Portal Architecture (User, Admin, Backend) · Financial & Vendor Settlement in ₹ INR.*
 
 ---
 
 ## 📑 Table of Contents
-1. [Problem Statement](#1-problem-statement)
-2. [Solution Overview](#2-solution-overview)
-3. [How It Works (High-Level Architecture)](#3-how-it-works-high-level-architecture)
-4. [6-Agent LangGraph Pipeline Architecture](#4-6-agent-langgraph-pipeline-architecture)
-5. [RAG Pipeline & Semantic Retrieval](#5-rag-pipeline--semantic-retrieval)
-6. [Tech Stack Table](#6-tech-stack-table)
-7. [System Architecture Diagram (Mermaid)](#7-system-architecture-diagram-mermaid)
-8. [Complete Project File Tree](#8-complete-project-file-tree)
-9. [System Requirements & Prerequisites](#9-system-requirements--prerequisites)
-10. [Step-by-Step Installation & Setup Guide](#10-step-by-step-installation--setup-guide)
-11. [Running the Platform](#11-running-the-platform)
-12. [Application Tour & User Guide](#12-application-tour--user-guide)
-13. [Real-World Campus Facility Maintenance Use Cases](#13-real-world-campus-facility-maintenance-use-cases)
-14. [Human-in-the-Loop (HITL) Protocol & Quality Assurance](#14-human-in-the-loop-hitl-protocol--quality-assurance)
-15. [Error Handling, Guardrails & Offline Fallback Engine](#15-error-handling-guardrails--offline-fallback-engine)
-16. [Maintenance Dataset & Seed Knowledge Base](#16-maintenance-dataset--seed-knowledge-base)
-17. [Security, Privacy & API Key Handling](#17-security-privacy--api-key-handling)
-18. [Testing & Verification Suites](#18-testing--verification-suites)
-19. [Performance Benchmarks & Latency Profile](#19-performance-benchmarks--latency-profile)
-20. [Comprehensive REST API Reference](#20-comprehensive-rest-api-reference)
-21. [Deployment & Containerization Guide](#21-deployment--containerization-guide)
-22. [Current Limitations & Edge Cases](#22-current-limitations--edge-cases)
-23. [Future Engineering Roadmap](#23-future-engineering-roadmap)
-24. [Hackathon Context & Submission Details](#24-hackathon-context--submission-details)
+1. [Overview](#1-overview)
+2. [Problem Statement](#2-problem-statement)
+3. [Problem Being Solved](#3-problem-being-solved)
+4. [Solution](#4-solution)
+5. [Who Can Use It](#5-who-can-use-it)
+6. [How It Works](#6-how-it-works)
+7. [System Architecture](#7-system-architecture)
+8. [Three Portal Architecture](#8-three-portal-architecture)
+9. [User / Student Portal](#9-user--student-portal)
+10. [Admin / Operations Portal](#10-admin--operations-portal)
+11. [Secure Backend & API Layer](#11-secure-backend--api-layer)
+12. [Organization Setup & Dynamic Configuration](#12-organization-setup--dynamic-configuration)
+13. [Complaint Lifecycle](#13-complaint-lifecycle)
+14. [Multi-Agent AI Intelligence Layer](#14-multi-agent-ai-intelligence-layer)
+15. [RAG / Historical Case Retrieval](#15-rag--historical-case-retrieval)
+16. [Admin & User AI Assistants](#16-admin--user-ai-assistants)
+17. [Real-Time Complaint Updates](#17-real-time-complaint-updates)
+18. [Database Architecture & Data Models](#18-database-architecture--data-models)
+19. [Authentication & Access Control](#19-authentication--access-control)
+20. [Security & Isolation](#20-security--isolation)
+21. [Financial & Worker Management](#21-financial--worker-management)
+22. [Analytics & Operations Intelligence](#22-analytics--operations-intelligence)
+23. [Project Directory Structure](#23-project-directory-structure)
+24. [Requirements & Prerequisites](#24-requirements--prerequisites)
+25. [Installation & Setup](#25-installation--setup)
+26. [First-Time Setup & Onboarding Wizard](#26-first-time-setup--onboarding-wizard)
+27. [Environment Variables](#27-environment-variables)
+28. [Gemini API Configuration](#28-gemini-api-configuration)
+29. [Running Locally](#29-running-locally)
+30. [START.bat (Windows One-Click Launcher)](#30-startbat-windows-one-click-launcher)
+31. [User Workflow Walkthrough](#31-user-workflow-walkthrough)
+32. [Admin Workflow Walkthrough](#32-admin-workflow-walkthrough)
+33. [Example Complaint Walkthrough](#33-example-complaint-walkthrough)
+34. [Testing & Quality Verification](#34-testing--quality-verification)
+35. [Troubleshooting Guide](#35-troubleshooting-guide)
+36. [Deployment & Containerization](#36-deployment--containerization)
+37. [Limitations & Roadmap](#37-limitations--roadmap)
+38. [Team & Credits](#38-team--credits)
 
 ---
 
-## 1. Problem Statement
+## 1. Overview
 
-University campuses, healthcare centers, and corporate facilities experience dozens of equipment breakdowns daily. Conventional Computerized Maintenance Management Systems (CMMS) act merely as passive ticket logs, suffering from three chronic failure modes:
+**FacilityMind AI** is an enterprise-grade, autonomous facility and infrastructure decision intelligence platform. Designed to bridge the operational divide between non-technical building occupants and maintenance administration, FacilityMind AI replaces slow, fragmented ticket logging with real-time multi-agent diagnostics, precedent-grounded recommendations, and live lifecycle synchronization.
 
-1. **Ambiguous Natural Language Submissions**: Non-technical reporters submit vague tickets (*"AC in Lab 3 making weird noise"*, *"Lift stuck again"*), omitting vital technical indicators, error codes, and exact locations.
-2. **Siloed Historical Maintenance Memory**: Institutional knowledge from decades of past repairs remains buried in paper logs or static spreadsheets. Technicians repeatedly troubleshoot recurring faults from scratch, bring incorrect replacement parts, and inflate equipment downtime.
-3. **Escalating Downtime & Labor Misallocation**: Without automated root cause triage, generic generalists are dispatched to specialized HVAC or high-voltage failures, resulting in repeat dispatches, delayed classroom schedules, and blown maintenance budgets.
-
----
-
-## 2. Solution Overview
-
-**FacilityMind AI** transforms reactive breakdown logging into **proactive, evidence-grounded decision intelligence**:
-
-- **Autonomous Natural Language Triage**: Parses raw complaint narratives into standardized equipment types, specific subsystem tags, operational severity ratings, and clinical symptom lists.
-- **Sub-50ms RAG Precedent Retrieval**: Performs hybrid vector similarity searches against a comprehensive database of 276+ historical maintenance precedents across 13 campus equipment domains.
-- **Probabilistic Root-Cause Inference**: Synthesizes historical precedents with Google Gemini 2.5 Flash to diagnose probable failure mechanisms accompanied by statistical confidence metrics.
-- **Actionable Prescription & Labor Dispatch**: Prescribes numbered repair procedures, required diagnostic tools, required spare parts, technician trade matching, and expected expenditure in **Indian Rupees (₹ INR)**.
-- **Closed-Loop Technician Learning**: Incorporates verified on-site technician feedback directly into both the SQL database and vector embeddings in real time, expanding institutional knowledge with zero server restarts.
+When a student or employee reports an issue (*e.g., "Air conditioner in Block B Lab 2 is rattling violently and leaking brown liquid"*), FacilityMind AI:
+1. Normalizes the unstructured narrative into clinical physical symptoms.
+2. Retrieves matching historical engineering precedents via hybrid semantic vector search in under 50ms.
+3. Synthesizes root cause diagnoses and safety risk ratings using Google Gemini 2.5 Flash.
+4. Prescribes step-by-step repair checklists, spare parts required, technician trade matching, and expected expenditure in **₹ INR**.
+5. Dispatches updates instantly across separate User and Admin portals via WebSockets and Server-Sent Events.
 
 ---
 
-## 3. How It Works (High-Level Architecture)
+## 2. Problem Statement
+
+Modern university campuses, corporate business parks, and hospital complexes operate complex physical equipment including HVAC chillers, backup diesel generators, high-speed passenger elevators, and emergency power inverters. However, traditional facility operations suffer from critical vulnerabilities:
+- **No Structured Diagnostic Triage**: Complaints are submitted via disparate channels (WhatsApp, phone calls, paper slips, or slow ticketing forms) with zero preliminary engineering analysis.
+- **Lost Institutional Knowledge**: Experienced technicians retire or leave, taking decades of troubleshooting experience with them. Recurring faults are treated as novel issues, leading to repeated trial-and-error repairs.
+- **Budgetary Leakage & Cost Blindness**: Organizations lack transparency into whether repair quotes from external contractors reflect actual historical market rates or inflated vendor billing.
+
+---
+
+## 3. Problem Being Solved
+
+| Traditional Maintenance Ticketing | FacilityMind AI Decision Platform |
+| :--- | :--- |
+| **Vague, Unstructured Tickets**: Non-technical users write *"AC broken"*, giving technicians zero advance context. | **Autonomous 6-Agent Triage**: Extracts equipment type, subcomponent, exact location, symptoms, and severity within 1.5s. |
+| **Trial-and-Error Troubleshooting**: Technicians arrive on-site with wrong tools and incorrect spare parts. | **Evidence-Backed Precedents**: Matches symptoms against historical cases to prescribe required tools and replacement components beforehand. |
+| **Opaque Status Black Hole**: Users never know if their complaint was seen, assigned, or ignored. | **Live Real-Time Lifecycle Sync**: Transparent 7-stage event timeline (`SUBMITTED` ➔ `AI_ANALYZED` ➔ `ASSIGNED` ➔ `IN_PROGRESS` ➔ `RESOLVED` ➔ `CLOSED`). |
+| **Uncontrolled Repair Expenses**: Invoices are approved without validation against historical benchmarks. | **₹ INR Budgetary Intelligence**: Calculates projected min/max repair bounds, tracks technician labor vs. parts, and aggregates lifetime expenditure. |
+
+---
+
+## 4. Solution
+
+FacilityMind AI provides a unified three-portal architecture:
+- **Zero Hardcoded Data**: Repository ships completely clean. On initial launch, an automated Setup Wizard configures the system for the specific institution.
+- **Multi-Agent Deliberation**: Six specialized LangGraph agents deliberate over each issue with deterministic fallback engines guaranteeing 100% uptime even without external internet connectivity.
+- **Strict Role Separation**: Public User Portal allows students to file and track tickets with tracking codes (e.g., `FM-0001`), while the secure Admin Command Center provides full triage, analytics, technician assignment, and password control.
+
+---
+
+## 5. Who Can Use It
+
+The platform dynamically reconfigures its categories, terminology, and workflows based on the selected organization archetype during first-time setup:
+
+1. **Universities & Colleges**: Academic wings, lecture halls, computer laboratories, dormitories, mess halls, air conditioners, water coolers, generators, elevators, projectors.
+2. **Hospitals & Healthcare Facilities**: Intensive Care Units, operating theaters, diagnostic radiology, medical gas pipelines, central sterilization, patient wards.
+3. **Corporate Tech Parks & Commercial Offices**: Server rooms, cafeteria air handling units, access control turnstiles, boardrooms, fire suppression.
+4. **Shopping Malls & Retail Hubs**: Escalators, central chiller plants, emergency lighting, waste compactors, parking elevators.
+5. **Residential Societies & Gated Communities**: Clubhouse facilities, swimming pool filtration pumps, rainwater harvesting systems, overhead water tanks.
+
+---
+
+## 6. How It Works
 
 ```
-[Reporter Narrative] ──> [FastAPI REST Ingestion] ──> [LangGraph 6-Agent Pipeline]
-                                                              │
-   ┌──────────────────────────────────────────────────────────┴──────────────────────────────┐
-   │                                                                                         │
-   ▼                                                                                         ▼
-1. Analyzer Agent ──────> 2. Retrieval Agent ──────> 3. Diagnosis Agent ──────> 4. Recommendation Agent
-(Entity Extraction)        (Cosine Vector Store)       (Root Cause Engine)       (Checklist, Tools, ₹ INR)
-                                                                                         │
-   ┌─────────────────────────────────────────────────────────────────────────────────────┘
-   ▼
-5. Explanation Agent ───> 6. Validation Agent ─────> [SQL Persistence & Real-Time Decision Report]
-(Transparent Audit)       (Guardrails & Sanity)                          │
-                                                                         ▼
-                                                          [Human-in-the-Loop Feedback]
-                                                                         │
-                                                          [Live Vector Index & DB Update]
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 FACILITYMIND AI WORKFLOW                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+          User / Student Portal                           Admin Operations Portal
+                   │                                                 │
+  1. File Complaint (Raw Text/Voice)                                  │
+                   │                                                 │
+                   ▼                                                 │
+     [FastAPI Ingestion Endpoint]                                    │
+                   │                                                 │
+                   ▼                                                 │
+     [LangGraph 6-Agent Pipeline]                                    │
+     • Entity Extraction & Triage                                    │
+     • Sub-50ms Vector RAG Retrieval                                 │
+     • Gemini 2.5 Flash Root-Cause Diagnosis                         │
+     • Step-by-Step Repair Prescription                              │
+     • ₹ INR Labor & Parts Estimation                                │
+                   │                                                 │
+                   ├─────────────────────────────────────────────────► 2. Live Notification
+                   │                                                    (Incoming Triage)
+                   │                                                 │
+                   ▼                                                 ▼
+  3. Live Ticket Tracking (FM-XXXX) ◄── [WebSocket Broadcast] ─────── 4. Admin Work Order
+     • Timeline Events                     (State Sync)                 • Assign Technician
+     • Public Resolution Notes                                          • Settle Labor/Parts
+     • Reopen Capability                                                • Close Complaint
 ```
 
-1. **Ingestion**: A user or faculty member submits a complaint via the intuitive portal.
-2. **Orchestration**: The FastAPI backend routes the payload to the LangGraph Orchestrator.
-3. **Multi-Agent Deliberation**: Six specialized agents execute in strict sequence, enriching a shared immutable state.
-4. **Evidence Retrieval**: Precedents are retrieved from an in-memory vector store using pre-normalized cosine similarity.
-5. **Synthesis**: The Diagnosis and Recommendation agents reason over retrieved evidence and generate structured outputs.
-6. **Guardrail Validation**: The Validation agent verifies data completeness, cost bounds, and safety parameters.
-7. **HITL Review**: The maintenance director or on-site technician approves or modifies the diagnosis on the interactive Decision Report.
-
 ---
 
-## 4. 6-Agent LangGraph Pipeline Architecture
-
-The intelligence layer is orchestrated via LangGraph StateGraph, passing a typed `AgentState` dictionary between six discrete agents:
-
-### Agent 1: Analyzer Agent (`analyzer_agent.py`)
-- **Role**: Ingests raw user narrative; extracts standardized `equipment_type`, `equipment_id`, `location`, `symptoms`, and assigns initial `severity` (`Critical`, `High`, `Medium`, `Low`).
-- **Input**: `raw_complaint`, `reported_location`, `reported_equipment_type`.
-- **Output**: Structured entities, normalized taxonomy, and parsed failure indicators.
-
-### Agent 2: Retrieval Agent (`retrieval_agent.py`)
-- **Role**: Queries the vector index for historically resolved cases that share semantic and lexical similarity with the current complaint.
-- **Input**: Normalized symptoms, equipment category, query embedding.
-- **Output**: Top-6 most relevant historical cases, ranked by similarity score (0.0 to 1.0) with detailed repair precedents.
-
-### Agent 3: Diagnosis Agent (`diagnosis_agent.py`)
-- **Role**: Synthesizes the complaint symptoms with retrieved historical precedents to determine the most probable root cause and failure mode.
-- **Input**: Symptoms, equipment type, retrieved historical cases.
-- **Output**: `primary_cause`, `failure_mode`, `confidence_score` (0.0–1.0), and `reasoning`.
-
-### Agent 4: Recommendation Agent (`recommendation_agent.py`)
-- **Role**: Synthesizes actionable repair protocols, required spare parts, diagnostic tools, technician trade classification, repair duration, and cost estimates.
-- **Input**: Diagnosis, equipment type, severity, historical repair durations.
-- **Output**: `action_checklist` (ordered steps), `required_tools`, `parts_needed`, `technician_type`, `repair_time_hours`, `estimated_cost_min` (₹), `estimated_cost_max` (₹).
-
-### Agent 5: Explanation Agent (`explanation_agent.py`)
-- **Role**: Constructs an audit trail explaining *why* the diagnosis and recommendations were made, citing specific historical precedents.
-- **Input**: Complete intermediate agent outputs and retrieved cases.
-- **Output**: Markdown-formatted plain English explanation and transparent 6-step audit log.
-
-### Agent 6: Validation Agent (`validator_agent.py`)
-- **Role**: Operates as a pipeline guardrail. Verifies that cost estimates are non-negative and realistic, recommendations contain safety precautions, and no fields are null.
-- **Input**: Full proposed decision report.
-- **Output**: `is_valid` boolean, sanity status, and error logs if guardrails trigger fallback defaults.
-
----
-
-## 5. RAG Pipeline & Semantic Retrieval
-
-FacilityMind AI utilizes a high-efficiency in-memory vector retrieval architecture engineered for sub-50ms query latency without heavy external database dependencies:
-
-- **Vector Store Engine (`vector_store.py`)**: Stores pre-normalized float vectors with persistent JSON serialization.
-- **Cosine Similarity Formula**:
-  $$\text{Similarity}(u, v) = \frac{\sum_{i=1}^n u_i v_i}{\|u\|_2 \|v\|_2}$$
-  Because embeddings are pre-normalized upon insertion ($\|u\|_2 = \|v\|_2 = 1$), cosine similarity simplifies to an ultra-fast dot product bounded to $[0.0, 1.0]$.
-- **Hybrid Retrieval Strategy**:
-  1. Semantic vector search calculates cosine similarity across case descriptions.
-  2. Lexical keyword matching rewards matching equipment types and symptom tokens.
-  3. Combined weighted score filters and returns top-6 historical matches with metadata.
-- **Dual Embedding Provider (`embeddings.py`)**:
-  - *Primary*: Google Gemini API `text-embedding-004` when API key is provided.
-  - *Offline Fallback*: Deterministic local feature hash embedding generating 384-dimensional normalized vectors, guaranteeing 100% functionality in air-gapped or offline environments.
-
----
-
-## 6. Tech Stack Table
-
-| Layer | Technology | Version | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Frontend Framework** | React | 18.3.1 | Component-based interactive user interface |
-| **Build Tool** | Vite | 6.0.5 | High-speed HMR development and optimized production bundling |
-| **Language (FE)** | TypeScript | 5.7.2 | End-to-end type safety across state, props, and API payloads |
-| **Styling** | TailwindCSS | 3.4.17 | Minimalist Obsidian Dark theme design system |
-| **Icons** | Lucide React | 0.469.0 | Clean, accessible SVG iconography |
-| **Charts** | Recharts | 3.10.1 | Responsive analytics for cost trends, category breakdowns, and statuses |
-| **Backend Framework**| FastAPI | 0.115.6 | Async REST API engine with auto-generated OpenAPI documentation |
-| **Language (BE)** | Python | 3.10–3.13 | High-performance async runtime |
-| **Orchestration** | LangGraph | 0.2.60 | Multi-agent directed acyclic graph execution and state management |
-| **AI Synthesis** | Google Gemini | 2.5 Flash | Structured JSON generation for root cause diagnosis and recommendations |
-| **Database ORM** | SQLAlchemy | 2.0.36 | Async ORM supporting SQLite and PostgreSQL |
-| **Database Driver** | aiosqlite | 0.20.0 | Async SQLite driver for zero-configuration local persistence |
-| **Data Validation** | Pydantic v2 | 2.10.4 | Request/response schema enforcement and environment management |
-| **Backend Testing** | Pytest + AnyIO | 8.3.4 | Unit, agent, and API integration testing |
-| **Frontend Testing** | Vitest + RTL | 2.1.8 | Component unit and render verification |
-| **Code Quality** | Ruff | 0.8.4 | Blazing fast Python linting and code formatting |
-
----
-
-## 7. System Architecture Diagram (Mermaid)
+## 7. System Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Client["Frontend Client (React 18 + Vite)"]
-        UI_Dash["Command Center Dashboard"]
-        UI_Form["Complaint Registration Portal"]
-        UI_Report["Interactive Decision Report"]
-        UI_KB["Knowledge Base & Evidence Explorer"]
-        UI_Tech["Technician Roster & Payouts"]
-        UI_Bot["FacilityMind AI Copilot"]
+graph TD
+    subgraph Frontend ["React 18 + TypeScript + Vite + TailwindCSS"]
+        UP[User Portal - File & Track]
+        AP[Admin Command Center & Analytics]
+        WS_CLIENT[WebSocket & SSE Consumer]
     end
 
-    subgraph API["FastAPI Backend Layer (:8000)"]
-        Router_Complaints["/api/v1/complaints"]
-        Router_Pipeline["/api/v1/pipeline"]
-        Router_Feedback["/api/v1/feedback"]
-        Router_KB["/api/v1/knowledge-base"]
-        Router_Tech["/api/v1/technicians"]
-        Router_Health["/api/v1/system-health"]
+    subgraph API_Gateway ["FastAPI High-Performance Async Gateway"]
+        AUTH[JWT & Bcrypt Security Layer]
+        ROUTER[REST Routers /api/v1]
+        EVENT_BUS[Async Event Bus & Broadcast]
     end
 
-    subgraph LangGraph["LangGraph 6-Agent Pipeline"]
-        A1["Agent 1: Analyzer Agent<br/>(Entity & Severity Extraction)"]
-        A2["Agent 2: Retrieval Agent<br/>(Semantic Case Matching)"]
-        A3["Agent 3: Diagnosis Agent<br/>(Root Cause & Confidence)"]
-        A4["Agent 4: Recommendation Agent<br/>(Checklist, Tools, ₹ INR Cost)"]
-        A5["Agent 5: Explanation Agent<br/>(Plain English Audit Trail)"]
-        A6["Agent 6: Validation Agent<br/>(Safety & Sanity Guardrails)"]
-        
-        A1 --> A2 --> A3 --> A4 --> A5 --> A6
+    subgraph Intelligence ["Multi-Agent AI Intelligence Engine"]
+        LG[LangGraph 6-Node State Machine]
+        GEMINI[Google Gemini 2.5 Flash]
+        RAG[Hybrid Cosine Vector RAG Store]
+        FALLBACK[Deterministic Offline Engine]
     end
 
-    subgraph Storage["Data & Storage Engine"]
-        SQL[("SQLite / PostgreSQL<br/>Async SQLAlchemy ORM")]
-        VectorStore[("Cosine Vector Store<br/>276+ Seeded Precedents")]
+    subgraph Persistence ["Relational & Vector Storage"]
+        SQL[(SQLite / PostgreSQL Async SQLAlchemy)]
+        VEC[(Normalized Vector Index Cache)]
     end
 
-    %% Client to API interactions
-    UI_Form -->|POST /complaints| Router_Complaints
-    Router_Complaints -->|Trigger Workflow| LangGraph
-    LangGraph -->|Read Similar Cases| VectorStore
-    LangGraph -->|Persist Runs & Results| SQL
-    LangGraph -->|Return Decision Report| UI_Report
-
-    %% Feedback Loop
-    UI_Report -->|POST /feedback (Approve/Correct)| Router_Feedback
-    Router_Feedback -->|Update Record & Status| SQL
-    Router_Feedback -->|Append Confirmed Case| VectorStore
-
-    %% Dashboard & Explorer Read queries
-    UI_Dash -->|GET metrics| Router_Health
-    UI_KB -->|GET cases & search| Router_KB
-    UI_Tech -->|GET technicians & labor| Router_Tech
-    UI_Bot -->|POST query| Router_Complaints
+    UP -->|HTTP POST| ROUTER
+    AP -->|HTTP REST| ROUTER
+    ROUTER --> AUTH
+    ROUTER --> LG
+    LG --> GEMINI
+    LG --> RAG
+    LG --> FALLBACK
+    RAG --> VEC
+    ROUTER --> SQL
+    EVENT_BUS -->|WebSocket / WS| WS_CLIENT
 ```
 
 ---
 
-## 8. Complete Project File Tree
+## 8. Three Portal Architecture
+
+FacilityMind AI enforces complete architectural isolation between three operational domains:
 
 ```
-c:/Users/Username/OneDrive/Desktop/hackthon/Faculty project/
-│
-├── .env.example                     # Environment template with configuration keys
-├── .gitignore                       # Git exclusion rules protecting build, cache, and secrets
-├── LICENSE                          # Open-source MIT License
-├── package.json                     # Root npm script wrapper for frontend commands
-├── README.md                        # Comprehensive system documentation
-├── run.py                           # Unified multi-process launcher (FastAPI + Vite)
-├── start.bat                        # Windows 1-click launcher script
-├── start.ps1                        # PowerShell 1-click launcher script
-├── verify_system.py                 # Comprehensive 5-subsystem verification script
-│
-├── backend/                         # Backend Application Root
-│   ├── pyproject.toml               # Python project configuration and Ruff settings
-│   ├── requirements.txt             # Pinned production dependencies
+┌─────────────────────────┐   ┌─────────────────────────┐   ┌─────────────────────────┐
+│        PORTAL 1         │   │        PORTAL 2         │   │        PORTAL 3         │
+│   User / Student Hub    │   │  Admin Operations Hub   │   │  Secure Backend & API   │
+├─────────────────────────┤   ├─────────────────────────┤   ├─────────────────────────┤
+│ • Public Complaint Form │   │ • Protected by JWT Auth │   │ • FastAPI Async Core    │
+│ • Live FM-XXXX Tracking │   │ • Triage Command Center │   │ • Gemini AI Multi-Agent │
+│ • User Phone History    │   │ • Worker & Payout Mgmt  │   │ • WebSocket Event Bus   │
+│ • Real-Time Timeline    │   │ • Cost Analytics (₹)    │   │ • Database Migrations   │
+│ • Student AI Assistant  │   │ • Knowledge Base Editor │   │ • Swagger Docs (/docs)  │
+└─────────────────────────┘   └─────────────────────────┘   └─────────────────────────┘
+```
+
+---
+
+## 9. User / Student Portal
+
+Designed with a clean, responsive layout accessible without authentication:
+- **Intelligent Complaint Filing**: Users submit issues in natural language. Form supports auto-fill for building, floor, room, and equipment type based on the active organization profile.
+- **Public Ticket Tracking**: Anyone with a tracking code (`FM-0001`) can view real-time progression, assigned technician details, and public resolution notes.
+- **My Complaints Tab**: Remembers the reporter's phone number locally, automatically aggregating all tickets filed by that user.
+- **Reopen Mechanism**: If a repair was ineffective, complainants can reopen the ticket with mandatory feedback, instantly notifying administrators.
+- **User AI Assistant**: Context-aware chatbot assisting users in drafting detailed complaints or checking status.
+
+---
+
+## 10. Admin / Operations Portal
+
+Protected by bcrypt-hashed credentials and JWT tokens:
+- **Triage Command Center**: Real-time incoming queue of complaints with urgency badges (`Critical`, `High`, `Medium`, `Low`).
+- **One-Click Work Order Dispatch**: Assign technicians from the verified staff roster, transitioning work orders to `Technician Assigned`.
+- **Financial Settlement**: Record actual labor charges, parts costs, and internal administrative notes upon resolving complaints.
+- **Profile & Credential Management**: Administrators can update their username, display name, and password directly from the navigation bar.
+- **Knowledge Base & RAG Management**: View all historical precedents and inject new maintenance records into the vector search space with zero server downtime.
+
+---
+
+## 11. Secure Backend & API Layer
+
+Powered by **FastAPI 0.115** and **Async SQLAlchemy**:
+- **Fully Asynchronous Execution**: Non-blocking I/O across database operations and multi-agent AI execution.
+- **Dual WebSocket & SSE Support**: `/api/v1/ws` provides low-latency bi-directional streaming; fallback HTTP polling ensures resilient communication across restricted enterprise proxies.
+- **Interactive Documentation**: Self-documenting OpenAPI schemas available at `http://localhost:8000/docs` and `http://localhost:8000/redoc`.
+
+---
+
+## 12. Organization Setup & Dynamic Configuration
+
+When FacilityMind AI is cloned and launched for the first time, it operates in **Fresh Install Mode**:
+- `GET /api/v1/organization/status` returns `setup_completed: false`.
+- The frontend automatically launches the **Organization Onboarding Wizard**.
+- The setup administrator specifies:
+  - Organization Name (e.g., *Apex Institute of Technology*, *City Care Multi-Specialty Hospital*)
+  - Organization Archetype (*College*, *Hospital*, *Corporate*, *Mall*, *Residential*)
+  - Primary Location, City, State, and Campus Blocks
+  - Custom Equipment Categories
+  - Administrator Name, Username, and Password
+  - Optional: Load curated demonstration dataset (265 domain records) or start with a 100% blank database.
+- Once configured, all dropdowns, headers, and AI prompts dynamically adapt to the organization's identity.
+
+---
+
+## 13. Complaint Lifecycle
+
+Each complaint transitions through a strict, auditable lifecycle:
+
+```
+[1. SUBMITTED] ──► [2. AI_ANALYZED] ──► [3. UNDER_REVIEW] ──► [4. ASSIGNED]
+     │                    │                     │                   │
+  User logs           6 Agents run         Triage team         Technician
+  complaint          root-cause & cost     inspects report     dispatched
+                                                                    │
+[7. REOPENED]  ◄── [6. CLOSED]      ◄── [5. RESOLVED]    ◄─────────┘
+     ▲                    │                     │
+     │             Audit verified         Labor & parts
+  User flags                              cost settled
+  unresolved
+```
+
+Every stage automatically writes an immutable record to the `complaint_timeline_events` table with actor role and timestamp.
+
+---
+
+## 14. Multi-Agent AI Intelligence Layer
+
+The decision engine utilizes a 6-node LangGraph state machine:
+
+1. **Analyzer Agent (`analyzer_agent.py`)**: Normalizes raw user narratives into standardized equipment types, physical symptom keywords, and baseline urgency ratings.
+2. **Retrieval Agent (`retrieval_agent.py`)**: Executes sub-50ms hybrid vector search across the historical case knowledge base to find top matching precedents.
+3. **Diagnosis Agent (`diagnosis_agent.py`)**: Synthesizes current symptoms with historical evidence via Google Gemini 2.5 Flash to identify root failure modes with probabilistic confidence scores.
+4. **Recommendation Agent (`recommendation_agent.py`)**: Formulates numbered repair steps, required diagnostic tools, replacement spare parts, technician trade matching, and expected expenditure in ₹ INR.
+5. **Explanation Agent (`explanation_agent.py`)**: Translates technical diagnoses into transparent, human-readable rationales accessible to facility directors.
+6. **Supervisor / Validation Agent (`supervisor_agent.py`)**: Enforces safety guardrails, validates numerical cost ranges, and falls back to deterministic rule trees if external LLM APIs are unreachable.
+
+---
+
+## 15. RAG / Historical Case Retrieval
+
+- **Vector Engine**: Cosine similarity retrieval over high-dimensional vector embeddings with pre-normalized vectors for sub-50ms execution.
+- **Hybrid Scoring**: Combines dense semantic similarity with exact keyword matching on equipment model numbers, error codes, and building zones.
+- **Dynamic Learning**: When an administrator marks a complaint resolved with verified technician feedback, the system generates new embeddings and updates the live vector index immediately.
+
+---
+
+## 16. Admin & User AI Assistants
+
+- **Admin AI Assistant**: Trained on facility operations, budget management, and preventive maintenance. Can answer questions like *"What was our total expenditure on HVAC in Block B this quarter?"* or *"Which elevator exhibits the highest frequency of door-sensor faults?"*.
+- **User AI Assistant**: Designed for students and staff. Helps draft clear symptom descriptions, answers facility queries (*"Where is the lost and found?"*), and tracks ticket statuses via phone number or tracking ID.
+
+---
+
+## 17. Real-Time Complaint Updates
+
+- **WebSocket Broadcast Engine**: Broadcasts `complaint.created`, `complaint.status_changed`, `complaint.assigned`, and `complaint.resolved` events.
+- **Zero-Refresh UI**: The Admin Command Center and User Tracking views update instantaneously without requiring manual page reloads.
+- **Heartbeat & Auto-Reconnect**: Frontend WebSocket client automatically reconnects within 4 seconds upon temporary network interruption.
+
+---
+
+## 18. Database Architecture & Data Models
+
+FacilityMind AI uses Async SQLAlchemy with SQLite (default) or PostgreSQL. Key tables include:
+
+```mermaid
+erDiagram
+    ORGANIZATIONS ||--o{ ADMIN_USERS : has
+    ORGANIZATIONS ||--o{ COMPLAINTS : owns
+    ORGANIZATIONS ||--o{ EQUIPMENT : manages
+    ORGANIZATIONS ||--o{ TECHNICIANS : employs
+    ORGANIZATIONS ||--o{ MAINTENANCE_RECORDS : archives
+
+    COMPLAINTS ||--|| DIAGNOSES : generates
+    COMPLAINTS ||--|| RECOMMENDATIONS : generates
+    COMPLAINTS ||--o{ AGENT_RUNS : audits
+    COMPLAINTS ||--o{ COMPLAINT_TIMELINE_EVENTS : logs
+    COMPLAINTS ||--o{ NOTIFICATIONS : triggers
+    COMPLAINTS ||--o{ TECHNICIAN_FEEDBACK : receives
+```
+
+- `organizations`: Multi-tenant configuration, branding, locations, and settings.
+- `admin_users`: Bcrypt password hashes, admin roles, email, and phone credentials.
+- `complaints`: Core ticket lifecycle, symptoms, severity, assigned technician, and ₹ actual costs.
+- `complaint_timeline_events`: Chronological audit trail of all lifecycle state transitions.
+- `maintenance_records`: Historical precedent knowledge base used by the RAG vector index.
+- `technicians`: Active facility staff roster, trade specialty, total jobs completed, and earnings.
+
+---
+
+## 19. Authentication & Access Control
+
+- **Password Security**: Passwords are encrypted using `bcrypt` via `passlib.context.CryptContext`.
+- **JWT Tokens**: HS256 signed JSON Web Tokens with configurable expiration (`JWT_EXPIRATION_MINUTES=1440`).
+- **Password Modification**: Administrators can change their username and password via `POST /api/v1/organization/change-password`, requiring validation of their existing password.
+
+---
+
+## 20. Security & Isolation
+
+- **API Key Masking**: Gemini API keys are never returned in public API payloads; responses display masked tokens (`AIzaSy...****`).
+- **CORS Protection**: Restricted to authorized origins (`localhost:5173`, `localhost:3000`).
+- **Clean Database Delivery**: Repository contains zero production data, personal identifiers, or pre-seeded credentials.
+
+---
+
+## 21. Financial & Worker Management
+
+- **₹ INR Currency Standardization**: All costs throughout the UI and backend are formatted in Indian Rupees (`₹`).
+- **Cost Variance Analysis**: Directly compares projected AI cost ranges against actual technician invoices.
+- **Technician Tracking**: Automatically increments job counts and accumulates earnings upon complaint resolution.
+
+---
+
+## 22. Analytics & Operations Intelligence
+
+- **Mean Time to Repair (MTTR)**: Real-time calculation of average resolution duration in hours.
+- **Category & Location Breakdown**: Identifies high-wear equipment and chronic breakdown zones across campus.
+- **Monthly Outlay Trends**: Tracks historical maintenance expenditure over time.
+
+---
+
+## 23. Project Directory Structure
+
+```
+FacilityMind-ai/
+├── .env.example                 # Safe environment configuration template
+├── .gitignore                   # Comprehensive ignores for .env, *.db, cache, logs
+├── README.md                    # System documentation
+├── START.bat                    # Windows one-click dual launcher
+├── run.py                       # Python cross-platform runner with auto-browser launch
+├── data/
+│   ├── synthetic_complaints_dataset.csv  # 265 curated domain precedents (optional load)
+│   └── vector_index.json                 # Auto-generated vector index cache
+├── backend/
 │   ├── app/
-│   │   ├── main.py                  # FastAPI application entrypoint & middleware
-│   │   ├── agents/                  # LangGraph Multi-Agent System
-│   │   │   ├── analyzer_agent.py    # Agent 1: Entity & severity extractor
-│   │   │   ├── retrieval_agent.py   # Agent 2: RAG precedent matcher
-│   │   │   ├── diagnosis_agent.py   # Agent 3: Root cause inference
-│   │   │   ├── recommendation_agent.py # Agent 4: Action & ₹ INR cost prescription
-│   │   │   ├── explanation_agent.py # Agent 5: Audit trail generator
-│   │   │   ├── validator_agent.py   # Agent 6: Pipeline safety guardrail
-│   │   │   ├── orchestrator.py      # LangGraph StateGraph assembly
-│   │   │   ├── state.py             # AgentState schema definitions
-│   │   │   └── llm.py               # Google Gemini client with structured fallback
-│   │   ├── api/v1/                  # REST API Endpoints
-│   │   │   ├── router.py            # Master API router aggregating v1 modules
-│   │   │   ├── complaints.py        # Complaint ingestion and listing endpoints
-│   │   │   ├── pipeline.py          # Direct agent execution triggers
-│   │   │   ├── feedback.py          # HITL technician approval & correction loop
-│   │   │   ├── knowledge_base.py    # Historical case queries and search
-│   │   │   ├── technicians.py       # Technician directory and labor tracking
-│   │   │   ├── copilot.py           # FacilityMind AI interactive chatbot
-│   │   │   └── system_health.py     # Subsystem telemetry and resource ping
-│   │   ├── core/                    # Core Infrastructure
-│   │   │   ├── config.py            # Pydantic BaseSettings & root path resolution
-│   │   │   └── logging.py           # Structured logging configuration
-│   │   ├── database/                # Persistence Layer
-│   │   │   ├── session.py           # Async SQLAlchemy session factory
-│   │   │   └── migration.py         # Table creation & column schema migrator
-│   │   ├── models/                  # SQLAlchemy ORM Models
-│   │   │   └── maintenance.py       # Complaint, Diagnosis, Recommendation, Feedback models
-│   │   ├── rag/                     # Retrieval-Augmented Generation Engine
-│   │   │   ├── vector_store.py      # Pre-normalized cosine similarity vector database
-│   │   │   ├── embeddings.py        # Dual Gemini / deterministic hash embedding service
-│   │   │   ├── retriever.py         # Hybrid semantic/lexical search interface
-│   │   │   └── indexing.py          # CSV-to-DB and CSV-to-Vector indexing engine
-│   │   └── schemas/                 # Pydantic API Request/Response Schemas
-│   │       ├── complaint.py         # Complaint validation schemas
-│   │       └── decision.py          # Decision report, feedback, and audit schemas
-│   └── tests/                       # Pytest Test Suite
-│       ├── conftest.py              # Async test fixtures and test client setup
-│       ├── test_agents.py           # Unit tests for each LangGraph agent
-│       ├── test_api.py              # Integration tests for REST endpoints
-│       └── test_rag.py              # Verification of vector search and embeddings
-│
-├── data/                            # Persistent Data Storage
-│   ├── maintenance_records.csv      # Seed dataset: 276+ verified campus breakdown cases
-│   └── app.db                       # Local SQLite database (auto-created on start)
-│
-├── docs/                            # Developer Documentation
-│   └── ENGINEERING_CONTEXT.md       # Architecture invariants and developer memory
-│
-├── frontend/                        # Frontend Application Root (React 18 + Vite)
-│   ├── index.html                   # HTML document root with Inter font
-│   ├── package.json                 # Frontend dependencies and npm scripts
-│   ├── postcss.config.js            # PostCSS configuration for Tailwind
-│   ├── tailwind.config.js           # Obsidian theme palette and styles
-│   ├── tsconfig.json                # TypeScript project configuration
-│   ├── tsconfig.node.json           # Vite node configuration
-│   ├── vite.config.ts               # Vite build configuration with proxy rules
+│   │   ├── main.py              # FastAPI application factory & lifespan handler
+│   │   ├── agents/              # LangGraph 6-node multi-agent implementation
+│   │   ├── api/v1/              # REST routers (complaints, org, auth, analytics)
+│   │   ├── core/                # Config, security, events, vector store, logging
+│   │   ├── database/            # SQLAlchemy async session & table models
+│   │   ├── schemas/             # Pydantic validation schemas
+│   │   └── services/            # Gemini AI service, analytics, seed loader
+│   └── tests/                   # 19 comprehensive pytest integration tests
+├── frontend/
 │   ├── src/
-│   │   ├── main.tsx                 # React application entrypoint
-│   │   ├── App.tsx                  # Master application layout and view router
-│   │   ├── components/              # Modular UI Components
-│   │   │   ├── Navbar.tsx           # Navigation header with system health ping
-│   │   │   ├── Sidebar.tsx          # Collapsible navigation drawer
-│   │   │   ├── DecisionReportModal.tsx # Interactive decision review modal
-│   │   │   ├── CaseDetailModal.tsx  # Detailed historical case inspection modal
-│   │   │   ├── ui/                  # Reusable Design System Atoms
-│   │   │   │   ├── Badge.tsx        # Status and severity badges
-│   │   │   │   ├── Button.tsx       # Accessible button variants
-│   │   │   │   ├── Card.tsx         # Obsidian surface card container
-│   │   │   │   └── Toast.tsx        # Notification toast alerts
-│   │   ├── lib/
-│   │   │   └── utils.ts             # Tailwind class merging utility (cn)
-│   │   ├── types/
-│   │   │   └── index.ts             # TypeScript interfaces for API models
-│   │   └── views/                   # Full-Page Screen Views
-│   │       ├── DashboardView.tsx    # Command Center analytics & KPI overview
-│   │       ├── NewComplaintView.tsx # Complaint registration form with live hints
-│   │       ├── DecisionReportView.tsx # Deep inspection of agent pipeline outputs
-│   │       ├── MaintenanceHistoryView.tsx # Knowledge Base & Evidence Explorer
-│   │       ├── SimilarCasesView.tsx # Vector search sandbox and query tester
-│   │       ├── TechniciansView.tsx  # Technician directory and labor settlements
-│   │       └── SystemHealthView.tsx # Real-time latency, storage, and health metrics
-│   └── tests/                       # Vitest Frontend Tests
-│       ├── setup.ts                 # Jest DOM testing environment setup
-│       └── App.test.tsx             # Dashboard rendering and interaction tests
-│
-└── scripts/                         # DevOps and Automation Scripts
-    └── verify.py                    # Automated CI/CD quality gate verification script
+│   │   ├── App.tsx              # Root React component & portal router
+│   │   ├── components/          # Navbar, Modals (Login, Onboarding, Password)
+│   │   ├── pages/               # UserPortalView, DashboardView, DecisionReportView
+│   │   ├── services/            # Axios API layer & WebSocket client
+│   │   └── types/               # TypeScript interfaces
+│   └── tests/                   # Vitest UI component integration tests
+└── scripts/
+    ├── clean_reset.py           # Hard reset utility (resets DB to 0 rows for clean install)
+    ├── test_lifecycle.py        # 7-stage end-to-end complaint lifecycle test
+    └── verify.py                # Comprehensive quality gate verification runner
 ```
 
 ---
 
-## 9. System Requirements & Prerequisites
+## 24. Requirements & Prerequisites
 
-- **Operating System**: Windows 10/11, macOS 12+, or Ubuntu Linux 20.04+.
-- **Python**: Version 3.10, 3.11, 3.12, or 3.13.
-- **Node.js**: Version 18.0.0 or newer (Node 20+ LTS recommended).
-- **Package Managers**: `pip` (Python) and `npm` (Node.js).
-- **RAM**: Minimum 4 GB (8 GB recommended for simultaneous local builds).
-- **Disk Space**: ~500 MB for node modules, Python virtualenv, and vector indices.
+- **Python**: Version `3.10` or higher (`3.11` recommended)
+- **Node.js**: Version `18.0.0` or higher (`npm` package manager)
+- **Operating System**: Windows 10/11, macOS, or Linux (Ubuntu 22.04+)
+- **Memory**: Minimum 4 GB RAM (8 GB recommended)
 
 ---
 
-## 10. Step-by-Step Installation & Setup Guide
+## 25. Installation & Setup
 
 ### Step 1: Clone Repository
 ```bash
@@ -360,38 +426,21 @@ git clone https://github.com/ayaanamp/FacilityMind-ai.git
 cd FacilityMind-ai
 ```
 
-### Step 2: Configure Environment Variables
-Copy the template configuration file:
-```bash
-cp .env.example .env
-```
-*(On Windows Command Prompt: `copy .env.example .env`)*
-
-Optionally edit `.env` to include your Google Gemini API key:
-```ini
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-> **Note**: An API key is **optional**. If omitted, FacilityMind AI automatically falls back to its deterministic rule engine and local feature-hash vector embeddings.
-
-### Step 3: Backend Virtual Environment Setup
+### Step 2: Backend Setup
 ```bash
 cd backend
 python -m venv .venv
 
-# Activate virtual environment:
-# Windows (cmd.exe):
-.venv\Scripts\activate.bat
-# Windows (PowerShell):
-.venv\Scripts\Activate.ps1
-# Linux / macOS:
+# On Windows:
+.venv\Scripts\activate
+# On macOS/Linux:
 source .venv/bin/activate
 
-# Install dependencies:
 pip install -r requirements.txt
 cd ..
 ```
 
-### Step 4: Frontend Installation
+### Step 3: Frontend Setup
 ```bash
 cd frontend
 npm install
@@ -400,361 +449,204 @@ cd ..
 
 ---
 
-## 11. Running the Platform
+## 26. First-Time Setup & Onboarding Wizard
 
-### Option A: Unified Multi-Process Launcher (Recommended)
-Launch both the FastAPI backend and Vite frontend in a single terminal with synchronized logs:
+1. Copy `.env.example` to `.env` (optional; default SQLite database requires zero configuration):
+   ```bash
+   cp .env.example .env
+   ```
+2. Launch the application (see [Running Locally](#29-running-locally)).
+3. Open `http://localhost:5173` in your browser.
+4. Because the database is 100% fresh, the **Organization Setup Wizard** will automatically appear.
+5. Enter your institution details, choose your equipment types, create your administrator password, and click **Initialize Organization**.
+
+---
+
+## 27. Environment Variables
+
+All variables have safe fallbacks. Configured via `.env` in the root directory:
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `GEMINI_API_KEY` | *(empty string)* | Google Gemini API key. If unset, deterministic fallback engine activates. |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./data/facilitymind.db` | Async database connection string. |
+| `SECRET_KEY` | `dev-secret-key-replace-in-production` | Secret key for signing JWT tokens. |
+| `JWT_EXPIRATION_MINUTES` | `1440` | JWT token validity period (24 hours). |
+| `ENVIRONMENT` | `development` | Deployment environment (`development` / `production`). |
+
+---
+
+## 28. Gemini API Configuration
+
+To enable live Google Gemini 2.5 Flash reasoning:
+1. Obtain a free API key from [Google AI Studio](https://aistudio.google.com/).
+2. Add your key to `.env`:
+   ```env
+   GEMINI_API_KEY=AIzaSyYourActualKeyHere
+   ```
+3. Alternatively, administrators can enter or update the key dynamically at runtime through the **Organization Settings** modal in the Admin Portal.
+
+---
+
+## 29. Running Locally
+
+You can launch both frontend and backend concurrently with a single command:
+
 ```bash
 python run.py
 ```
-*(Or double-click `start.bat` on Windows, or execute `./start.ps1` in PowerShell)*
 
-### Option B: Separate Terminal Launch
-**Terminal 1 — Backend (FastAPI)**:
+`run.py` validates dependencies, activates the virtual environment, spins up FastAPI on `http://localhost:8000`, starts Vite on `http://localhost:5173`, and automatically opens your default web browser.
+
+---
+
+## 30. START.bat (Windows One-Click Launcher)
+
+On Windows systems, simply double-click **`START.bat`** in the root directory. It automatically:
+- Checks Python and Node.js installations
+- Verifies virtual environment existence
+- Launches Backend (`localhost:8000`) and Frontend (`localhost:5173`) in independent terminal consoles
+- Opens the application directly in your browser
+
+---
+
+## 31. User Workflow Walkthrough
+
+1. Navigate to `http://localhost:5173`.
+2. Click **Submit Complaint**.
+3. Select your campus location (*e.g., Science Wing, Floor 2, Room 204*).
+4. Enter the issue description: *"Water cooler is dispensing lukewarm water and making a humming sound"*.
+5. Click **Submit Infrastructure Complaint**.
+6. Receive an instant tracking code (e.g., `FM-0001`) with multi-agent diagnosis and estimated repair duration.
+7. Switch to the **Live Ticket Tracking** tab anytime to check repair status.
+
+---
+
+## 32. Admin Workflow Walkthrough
+
+1. On `http://localhost:5173`, click **Admin Sign In** in the top right.
+2. Enter your administrator username and password created during onboarding.
+3. In the **Command Center**, view newly triaged complaints in real time.
+4. Click **Assign Technician** and select a qualified specialist from the roster.
+5. When on-site repairs are completed, click **Resolve Complaint**, record labor and parts costs, enter verified technician notes, and submit.
+6. The user's tracking view updates to `RESOLVED` instantly.
+
+---
+
+## 33. Example Complaint Walkthrough
+
+### Central AC Breakdown Scenario
+- **Input**: *"Central AC in Computer Lab 3 is blowing warm air, producing an electrical burning smell, and tripping circuit breakers."*
+- **Triage Result**:
+  - Equipment: `Air Conditioner / HVAC`
+  - Severity: `Critical`
+  - Urgency: Immediate action required (electrical hazard)
+- **Precedent Retrieved**: Case `#MC-0412` (*Blower motor capacitor short circuit and contactor arc damage* - 94.2% semantic similarity).
+- **Diagnosis**: *Compressor capacitor breakdown causing severe locked rotor amp draw and thermal safety disconnect.*
+- **Prescribed Checklist**:
+  1. Lockout/tagout primary 415V three-phase breaker.
+  2. Discharge and test dual run capacitor with digital capacitance meter.
+  3. Inspect compressor contactor points for severe carbon pitting.
+  4. Replace 45/5 uF capacitor and 30A contactor.
+  5. Measure running current draw against rated full-load amperage.
+- **Financial Estimate**: ₹2,800 - ₹4,200 (Labor: ₹750, Parts: ₹2,400).
+
+---
+
+## 34. Testing & Quality Verification
+
+Run the full automated verification gate:
+
 ```bash
-cd backend
-.venv\Scripts\activate
-python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-**Terminal 2 — Frontend (Vite)**:
-```bash
-cd frontend
-npm run dev
+# Run the complete test suite (Backend Lint + Pytest + Vite Build + Vitest)
+python scripts/verify.py
+
+# Run the 7-stage end-to-end complaint lifecycle test
+python scripts/test_lifecycle.py
 ```
 
-### Access URLs:
-- **Interactive Web App**: [http://localhost:5173](http://localhost:5173)
-- **Interactive Swagger API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **OpenAPI JSON Spec**: [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
-- **Health Check Endpoint**: [http://localhost:8000/api/v1/system-health](http://localhost:8000/api/v1/system-health)
-
----
-
-## 12. Application Tour & User Guide
-
-### 1. Command Center Dashboard (`DashboardView.tsx`)
-- **Real-Time KPIs**: Track Total Complaints, Critical Outages, Mean Time to Repair (MTTR in hours), and Cumulative Repair Spend in **₹ INR**.
-- **Visual Analytics**: Interactive Recharts graphs displaying 7-day complaint trends, equipment breakdown distributions, and severity proportions.
-- **Active Incident Feed**: Live cards showing tickets in progress with direct navigation to their agent decision reports.
-
-### 2. Register New Complaint (`NewComplaintView.tsx`)
-- **Quick-Triage Templates**: Single-click demo buttons that pre-populate realistic campus breakdown scenarios (e.g., Classroom Projector Overheating, Elevator Door Stuck, DG Governor Hunting).
-- **Smart Form Guidance**: Dynamic input prompts assisting users in describing technical failure indicators (sounds, error lights, temperature, fluid leaks).
-
-### 3. Decision Report & HITL Review (`DecisionReportView.tsx`)
-- **6-Agent Execution Audit**: Transparent sequential cards showing each agent's execution latency, inputs, and intermediate conclusions.
-- **Diagnostic Synthesis**: Primary root cause, failure mode, and statistical confidence badge (`High Evidence`, `Moderate Evidence`, `Low Evidence`).
-- **Actionable Prescription**: Numbered procedural repair checklist, required tool inventory, replacement spare parts, and technician trade matching.
-- **INR Cost Estimator**: Transparent minimum and maximum budget estimates in **₹ INR**.
-- **Human-in-the-Loop Protocol**: One-click **"Approve AI Diagnosis"** or **"Technician Correction"** modal allowing on-site staff to enter true diagnosis, actual repair duration, and final settled cost.
-
-### 4. Knowledge Base & Evidence Explorer (`MaintenanceHistoryView.tsx`)
-- **276+ Historical Records**: Complete searchable archive of past campus repairs.
-- **Instant Search & Multi-Filters**: Filter by equipment category, urgency level, location, or search by ticket ID and keywords.
-- **Modal Deep-Dive**: Click any case card to view symptoms, full diagnostic notes, replacement part serials, and historical labor expenses.
-
-### 5. Technician Roster & Labor Payouts (`TechniciansView.tsx`)
-- **Trade Directory**: Profiles of campus technicians categorized by specialization (HVAC, Electrical, Mechanical, Plumbing, AV/IT).
-- **Workload Balancing**: Real-time count of active work orders per technician.
-- **Settlement Calculator**: Automated calculation of technician labor earnings based on hourly wage rates and verified repair hours.
-
-### 6. System Health Monitor (`SystemHealthView.tsx`)
-- **Live Latency Telemetry**: Subsystem ping times for API response, SQLite query latency, and vector search speed.
-- **Resource Usage**: Track active database connection count, total indexed vector count, and memory allocation.
-
-### 7. FacilityMind AI Copilot (Interactive Assistant)
-- Accessible from the floating action button on any screen.
-- Answers operational questions regarding maintenance procedures, campus equipment histories, and ticket status inquiries.
-
----
-
-## 13. Real-World Campus Facility Maintenance Use Cases
-
-### Scenario A: Classroom 302 Projector Overheating Shutdown
-- **Raw Complaint**: *"The projector in Classroom 302 shuts down after 10 minutes with overheating red indicator light."*
-- **Agent Diagnosis**: Thermal cut-off triggered by heavy dust accumulation on intake sponge filter and failing exhaust blower bearing.
-- **Prescribed Action**: Deep clean sponge filter, inspect blower fan for bearing seizure, clean optical lens, verify exhaust airflow.
-- **Dispatch**: AV/IT Technician.
-- **Estimated Cost**: ₹750 – ₹1,150 | **Duration**: 0.8 Hours.
-
-### Scenario B: Engineering Block C Lift 2 Door Interlock Failure
-- **Raw Complaint**: *"Lift 2 in Engineering Block C refuses to close door and displays error E-04 on floor 3."*
-- **Agent Diagnosis**: Optical light curtain alignment drift combined with debris lodged in bottom mechanical door sill track.
-- **Prescribed Action**: Vacuum debris from sill groove, recalibrate infra-red safety beam alignment, test emergency door interlock relay.
-- **Dispatch**: Elevator Maintenance Specialist.
-- **Estimated Cost**: ₹1,800 – ₹3,200 | **Duration**: 1.5 Hours.
-
-### Scenario C: Main Hostel 500kVA Diesel Generator Fuel Governor Hunting
-- **Raw Complaint**: *"Hostel DG set RPM fluctuates wildly during load change and emits black exhaust smoke."*
-- **Agent Diagnosis**: Fuel governor actuator mechanical linkage sticking and partially choked secondary fuel filter cartridge.
-- **Prescribed Action**: Replace secondary fuel filter, bleed air bubbles from high-pressure fuel line, lubricate electronic governor linkage.
-- **Dispatch**: Heavy Mechanical / DG Specialist.
-- **Estimated Cost**: ₹4,500 – ₹8,200 | **Duration**: 2.5 Hours.
-
-### Scenario D: Administrative Building 15HP Water Pump Cavitation
-- **Raw Complaint**: *"Pump room motor 1 vibrating violently with loud marbles-in-pipe sound and low discharge pressure."*
-- **Agent Diagnosis**: Severe pump impeller cavitation caused by choked foot-valve suction strainer and air leakage in suction flange.
-- **Prescribed Action**: Prime suction line, replace suction flange gasket, clear debris from foot-valve strainer basket, check impeller vane erosion.
-- **Dispatch**: Mechanical / Pump Technician.
-- **Estimated Cost**: ₹2,200 – ₹4,500 | **Duration**: 2.0 Hours.
-
-### Scenario E: Server Room Split AC Low Refrigerant / Ice Formation
-- **Raw Complaint**: *"Server Room AC 1 indoor coil is frozen into a solid block of ice and room temperature is climbing to 28C."*
-- **Agent Diagnosis**: Low evaporator refrigerant charge (R-410A) due to micro-leak at flare nut joint causing evaporator freezing.
-- **Prescribed Action**: Thaw coil with blower, pressurize with nitrogen to detect flare nut leak, re-flare and tighten fitting, evacuate to 500 microns, recharge R-410A to specified weight.
-- **Dispatch**: HVAC Specialist.
-- **Estimated Cost**: ₹2,800 – ₹5,400 | **Duration**: 2.2 Hours.
-
----
-
-## 14. Human-in-the-Loop (HITL) Protocol & Quality Assurance
-
-FacilityMind AI enforces a strict **Human-in-the-Loop (HITL)** governance model:
-
-1. **AI As Decision Support, Not Unchecked Authority**: Agents produce structured recommendations, but work orders require human verification before procurement or financial settlement.
-2. **Technician Verification**: Upon physical inspection, the attending technician reviews the AI decision report on their mobile device or workstation.
-3. **Approval vs Override**:
-   - **Accept**: If the diagnosis matches, the technician approves with 1 click. Status transitions to `Verified & Closed`.
-   - **Correction**: If on-site conditions reveal a different fault, the technician enters the corrected root cause, actual parts used, and true cost. Status transitions to `Technician Corrected`.
-4. **Continuous Learning Loop**: Every verified ticket is immediately vectorized and stored into both the SQLite database and vector index. Subsequent complaints benefit from the newly verified ground truth without needing code redeployment.
-
----
-
-## 15. Error Handling, Guardrails & Offline Fallback Engine
-
-The system is built for **100% operational resilience**:
-
-- **Offline / Zero-Key Fallback**: If `GEMINI_API_KEY` is not provided or Gemini rate limits are encountered, the system gracefully switches to its built-in rule-based expert engine and local feature hashing embeddings. The entire pipeline executes with zero crashes.
-- **Validation Guardrails (Agent 6)**:
-  - Validates that cost ranges satisfy $\text{cost}_{\min} \le \text{cost}_{\max}$.
-  - Enforces mandatory safety advisories for high-voltage and high-pressure mechanical equipment.
-  - Sanitizes user input to prevent prompt injection or malformed payload injection into database models.
-- **Database Resilience**: Uses async SQLite connection pooling and automated schema migration to ensure missing database columns are created automatically on boot without destroying existing records.
-
----
-
-## 16. Maintenance Dataset & Seed Knowledge Base
-
-The repository includes a curated, domain-grounded dataset (`data/maintenance_records.csv`) containing **276+ verified maintenance incidents**:
-
-- **Equipment Domains (13 Categories)**:
-  - Air Conditioners (HVAC)
-  - Classroom Digital Projectors
-  - Diesel Generators (500kVA / 250kVA)
-  - Passenger & Service Elevators
-  - High-Capacity Water Pumps
-  - Online UPS Systems & Battery Banks
-  - RO Water Purification Plants
-  - Three-Phase Electrical Distribution Panels
-  - Security CCTV Camera Systems
-  - Enterprise Campus Network Switches
-  - Restroom & Plumbing Fixtures
-  - Laboratory Autoclaves & Centrifuges
-  - Campus Street Lighting & Illumination
-- **16 Standardized Schema Attributes**: `id`, `equipment_type`, `equipment_id`, `location`, `complaint`, `symptoms`, `diagnosis`, `root_cause`, `recommended_fix`, `estimated_cost`, `repair_time`, `urgency`, `technician_type`, `date`, `technician_notes`, `status`.
-
----
-
-## 17. Security, Privacy & API Key Handling
-
-- **Zero Hardcoded Secrets**: Scanned and audited for zero exposed API keys or tokens. All credentials load exclusively from environment variables or `.env`.
-- **Pre-Configured Git Exclusions**: `.gitignore` strictly blocks `.env`, `.env.local`, `.venv/`, `node_modules/`, `*.db`, `*.sqlite`, and vector index caches from accidental version control commits.
-- **Input Sanitization**: Request bodies are validated using Pydantic schemas with type coercion and length constraints to protect against injection attacks.
-- **CORS Protection**: FastAPI CORS middleware is restricted to designated frontend development and production origins.
-
----
-
-## 18. Testing & Verification Suites
-
-The repository contains automated unit, integration, and end-to-end verification suites:
-
-### Running Backend Tests
-```bash
-backend\.venv\Scripts\python -m pytest backend/tests -v
+### Verification Gate Output
 ```
-*(10 passing tests verifying agents, API routes, database sessions, and RAG retrieval)*
-
-### Running Frontend Tests
-```bash
-cd frontend && npm run test
-```
-*(Vitest suite verifying component mounting, dashboard metric calculations, and table rendering)*
-
-### Running Code Linter
-```bash
-backend\.venv\Scripts\python -m ruff check backend
-```
-*(Zero lint or formatting errors)*
-
-### Unified Automated Quality Gate
-Execute the comprehensive verification script which checks linting, tests, builds, and imports in one command:
-```bash
-backend\.venv\Scripts\python scripts/verify.py
-```
-
-### End-to-End System Self-Verification
-Execute the 5-subsystem probe to verify dataset integrity, database tables, vector index search, 6-agent LangGraph pipeline execution, and frontend distribution:
-```bash
-backend\.venv\Scripts\python verify_system.py
+============================================================
+FACILITYMIND AI PLATFORM VERIFICATION GATE
+============================================================
+ - Backend Lint (Ruff)                     : PASSED
+ - Backend Tests (Pytest - 19 tests)       : PASSED
+ - Backend App Import Check                : PASSED
+ - Frontend Build (TypeScript & Vite)      : PASSED
+ - Frontend Tests (Vitest - 3 tests)       : PASSED
+============================================================
+ALL QUALITY GATES PASSED [100% SUCCESS]
 ```
 
 ---
 
-## 19. Performance Benchmarks & Latency Profile
+## 35. Troubleshooting Guide
 
-Benchmarked on standard developer hardware (Intel Core i7, 16 GB RAM, Windows 11):
-
-| Operation | Latency | Optimization Mechanism |
-| :--- | :--- | :--- |
-| **Vector Similarity Search (276 Cases)** | `< 12 ms` | Pre-normalized dot product vector search |
-| **LangGraph 6-Agent Execution (Local Engine)**| `< 85 ms` | In-memory compiled StateGraph execution |
-| **LangGraph 6-Agent Execution (Gemini API)** | `1.2 – 1.8 s`| Parallel JSON mode with HTTP/2 keep-alive |
-| **Complaint Ingestion & Persistence** | `< 25 ms` | Async SQLAlchemy with connection pooling |
-| **Frontend Initial Bundle Load** | `< 250 ms` | Dynamic code splitting (`recharts`, `lucide`, views) |
-| **Technician Feedback Settlement** | `< 30 ms` | Single-transaction dual write (SQL + Vector Index) |
-
----
-
-## 20. Comprehensive REST API Reference
-
-### Core Endpoints
-
-#### 1. Ingest Complaint & Run Pipeline
-```http
-POST /api/v1/complaints
-Content-Type: application/json
-
-{
-  "raw_complaint": "The projector in Classroom 302 shuts down after 10 minutes with overheating light.",
-  "location": "Classroom 302",
-  "equipment_type": "Classroom Projector",
-  "reporter_name": "Dr. Ramesh Sharma",
-  "reporter_dept": "Computer Science"
-}
-```
-
-#### 2. Get Decision Report
-```http
-GET /api/v1/complaints/{id}/decision
-```
-
-#### 3. Submit Technician Feedback (HITL)
-```http
-POST /api/v1/feedback
-Content-Type: application/json
-
-{
-  "complaint_id": 1,
-  "accepted": true,
-  "technician_name": "Suresh Kumar",
-  "technician_feedback": "Filter was choked with dust. Cleaned and tested for 30 minutes.",
-  "actual_cost": 850
-}
-```
-
-#### 4. Search Knowledge Base
-```http
-GET /api/v1/knowledge-base/search?query=cooling&equipment_type=Air%20Conditioner&limit=5
-```
-
-#### 5. List Technicians & Labor
-```http
-GET /api/v1/technicians
-```
-
-#### 6. FacilityMind Copilot Query
-```http
-POST /api/v1/copilot
-Content-Type: application/json
-
-{
-  "query": "How many complaints are currently pending in the electrical category?"
-}
-```
-
-#### 7. System Health Telemetry
-```http
-GET /api/v1/system-health
-```
+- **Port 8000 or 5173 Already in Use**:
+  ```bash
+  # Windows
+  netstat -ano | findstr :8000
+  taskkill /PID <PID> /F
+  ```
+- **Virtual Environment Not Found**:
+  ```bash
+  cd backend && python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
+  ```
+- **Reset Database to Completely Blank**:
+  ```bash
+  python scripts/clean_reset.py
+  ```
 
 ---
 
-## 21. Deployment & Containerization Guide
+## 36. Deployment & Containerization
 
-### Docker Deployment
-A production container can be built using Docker:
+FacilityMind AI is production-ready for Docker and containerized orchestration:
 
 ```dockerfile
-# Dockerfile
-FROM python:3.11-slim AS backend
-WORKDIR /app
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY backend/ backend/
-COPY data/ data/
-
-FROM node:20-alpine AS frontend-builder
-WORKDIR /app
+# Multi-stage Dockerfile
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
-COPY frontend/ .
+COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.11-slim
 WORKDIR /app
-COPY --from=backend /usr/local/lib/python3.11 /usr/local/lib/python3.11
-COPY --from=backend /app /app
-COPY --from=frontend-builder /app/dist /app/frontend/dist
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/ ./backend
+COPY data/ ./data
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-ENV ENVIRONMENT=production
 EXPOSE 8000
 CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-Run with Docker Compose:
-```bash
-docker compose up -d --build
-```
+---
+
+## 37. Limitations & Roadmap
+
+- **Current Limitations**:
+  - IoT telemetry currently ingested via natural language description rather than direct MQTT sensor hardware streams.
+  - SMS notifications require external Twilio/Gupshup API credentials.
+- **Future Improvements**:
+  - Direct Modbus / BACnet chiller telemetry ingestion.
+  - Native Mobile Progressive Web App with camera barcode scanning.
+  - Multilingual voice complaint filing in regional Indian languages via Gemini Audio.
 
 ---
 
-## 22. Current Limitations & Edge Cases
+## 38. Team & Credits
 
-To maintain transparent, professional engineering integrity:
-1. **Single-Tenant Role View**: The platform simulates multi-role viewpoints (Director, Engineer, Faculty) from an interactive toggle rather than requiring a full OAuth2/SAML authentication provider (optimal for hackathon judging and live evaluation).
-2. **Synthetic Domain Dataset**: While grounded in authentic campus engineering specifications, the 276 historical cases represent synthetic campus scenarios tailored for demonstration.
-3. **Manual Sensor Entry**: IoT telemetry (vibration, temperature) is currently submitted via ticket narrative rather than through direct MQTT/Modbus hardware sensor streams.
-
----
-
-## 23. Future Engineering Roadmap
-
-- [ ] **Phase 1: Real-Time IoT Ingestion**: MQTT broker integration to automatically ingest real-time vibration, temperature, and power metrics directly from smart meters.
-- [ ] **Phase 2: Multimodal Mobile PWA**: Progressive Web App with offline audio recording (whisper voice-to-text) and computer vision camera diagnostics for torn belts, burnt relays, and water leaks.
-- [ ] **Phase 3: Multi-Campus Federation**: Federated multi-facility clustering allowing multi-campus universities or hospital chains to benchmark equipment lifecycle costs across regional sites.
-
----
-
-## 24. Hackathon Context & Submission Details
-
-- **Project Name**: FacilityMind AI
-- **Repository**: [https://github.com/ayaanamp/FacilityMind-ai](https://github.com/ayaanamp/FacilityMind-ai)
-- **Track**: Autonomous Multi-Agent AI / Enterprise Decision Intelligence
-- **Primary AI Models**: Google Gemini 2.5 Flash / Google Text-Embedding-004
-- **Agent Framework**: LangGraph 0.2
-- **License**: [MIT License](LICENSE)
-- **Status**: Production Audit Completed · 100% Quality Gates Passed · Ready for Deployment
-
----
-
-## 25. Team & Engineering Responsibilities
-
-| Member | Role | Core Responsibility Areas |
+| Team Member | Engineering Role | Core Responsibilities |
 | :--- | :--- | :--- |
-| **Ayaan** | **Team Leader / Lead Developer** | System Architecture, LangGraph Multi-Agent Pipeline, End-to-End Integration, AI Orchestration & Release Management |
-| **Rajashaker** | **Backend & API Engineer** | FastAPI REST Endpoints, Pydantic Schema Validation, Async Service Lifecycle & Route Architecture |
-| **Manoj** | **Database & RAG Engineer** | SQLite / SQLAlchemy Persistence, Historical Maintenance Dataset Curation & Cosine Vector Retrieval |
-| **Yadhas** | **Frontend & QA Engineer** | React / Vite Obsidian UI Development, Interactive Recharts Data Visualizations & Testing Verification |
+| **Ayaan** | **Team Leader / Lead Developer** | System Architecture, LangGraph Multi-Agent Pipeline, End-to-End Platform Integration, Security & Release Readiness |
+| **Rajashaker** | **Backend / API Engineer** | FastAPI REST Endpoints, Pydantic Schema Validation, Async Route Architecture & WebSocket Event Bus |
+| **Manoj** | **Database / RAG / Data Engineer** | SQLAlchemy Persistence, SQLite Migrations, Vector Precedent Curation & Cosine Similarity Search |
+| **Yadhas** | **Frontend / UI / Testing Engineer** | React 18 Obsidian Interface, TailwindCSS Design System, Vitest Component Tests & Quality Verification |
 
 ---
 

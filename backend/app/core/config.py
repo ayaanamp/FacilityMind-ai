@@ -18,14 +18,25 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # API Configuration
-    BACKEND_HOST: str = "127.0.0.1"
+    BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     API_PREFIX: str = "/api/v1"
     PROJECT_NAME: str = "FacilityMind AI"
     VERSION: str = "1.0.0"
 
+    # Authentication & Security
+    SECRET_KEY: str = "facilitymind-super-secure-session-secret-key-2026-xyz"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
+
     # CORS Configuration
-    CORS_ORIGINS: list[str] | str = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    CORS_ORIGINS: list[str] | str = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -41,7 +52,7 @@ class Settings(BaseSettings):
     # Database Configuration (SQLite default with async support, Postgres ready)
     DATABASE_URL: str = f"sqlite+aiosqlite:///{DEFAULT_DB_PATH}"
 
-    # LLM Providers
+    # LLM Providers (Secure backend secrets)
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""

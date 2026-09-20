@@ -3,8 +3,10 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  Clock,
   Database,
   ExternalLink,
+  IndianRupee,
   Layers,
   MapPin,
   Phone,
@@ -13,8 +15,11 @@ import {
   Search,
   Sparkles,
   Trash2,
+  TrendingUp,
   User,
   UserCheck,
+  Users,
+  Wallet,
   Wrench,
   X,
   Zap,
@@ -24,6 +29,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -105,15 +111,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const loadData = async (_silent = false) => {
-    setError(null);
     try {
       const data = await fetchDashboardMetrics();
       setMetrics(data);
       if (data.active_work_orders) {
         setActiveWorkOrders(data.active_work_orders);
       }
+      setError(null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load telemetry from database');
+      if (!_silent) {
+        // Auto-retry once after 1.5s
+        setTimeout(async () => {
+          try {
+            const retryData = await fetchDashboardMetrics();
+            setMetrics(retryData);
+            if (retryData.active_work_orders) {
+              setActiveWorkOrders(retryData.active_work_orders);
+            }
+            setError(null);
+          } catch {
+            setError(err instanceof Error ? err.message : 'Connecting to FacilityMind Backend API...');
+          }
+        }, 1500);
+      }
     }
   };
 
@@ -616,91 +636,117 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* KPI Stats Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Historical Records */}
-        <Card className="border-zinc-800 bg-zinc-950/70">
-          <CardContent className="p-4 space-y-1">
-            <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
-              Historical Case Base
-            </span>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-white">
-                {metrics ? metrics.total_historical_records.toLocaleString() : '—'}
-              </span>
-              <Badge className="bg-zinc-900 text-zinc-300 border-zinc-700 font-mono text-[10px]">
-                Indexed Vectors
-              </Badge>
+      {/* Comprehensive 8-Card Live Platform KPI Telemetry Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        {/* Card 1: Registered Clients / Users */}
+        <Card className="border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 transition-all">
+          <CardContent className="p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-[10px] font-mono uppercase tracking-wider">Clients / Users</span>
+              <Users className="h-3.5 w-3.5 text-sky-400" />
             </div>
-            <p className="text-[10px] text-zinc-400 pt-1">
-              Verified campus repair procedures in SQLite
-            </p>
+            <div className="text-xl font-bold font-mono text-white">
+              {metrics ? (metrics.total_users_count || 0).toLocaleString() : '—'}
+            </div>
+            <p className="text-[9px] text-zinc-400 truncate">Campus Complainants</p>
           </CardContent>
         </Card>
 
-        {/* Active Work Orders */}
-        <Card className="border-zinc-800 bg-zinc-950/70">
-          <CardContent className="p-4 space-y-1">
-            <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
-              Active Issues / Pipeline
-            </span>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-white">
-                {activeWorkOrders.length}
-              </span>
-              <Badge
-                className={
-                  activeWorkOrders.length === 0
-                    ? 'bg-emerald-950 text-emerald-400 border-emerald-800 font-mono text-[10px]'
-                    : 'bg-amber-950 text-amber-400 border-amber-800 font-mono text-[10px]'
-                }
-              >
-                {activeWorkOrders.length === 0 ? 'Clean Slate' : `${activeWorkOrders.length} In Progress`}
-              </Badge>
+        {/* Card 2: Total Complaints */}
+        <Card className="border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 transition-all">
+          <CardContent className="p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-[10px] font-mono uppercase tracking-wider">Complaints</span>
+              <Layers className="h-3.5 w-3.5 text-indigo-400" />
             </div>
-            <p className="text-[10px] text-zinc-400 pt-1">
-              Live work orders being tracked by agents
-            </p>
+            <div className="text-xl font-bold font-mono text-white">
+              {metrics ? (metrics.total_complaints_count ?? metrics.total_historical_records).toLocaleString() : '—'}
+            </div>
+            <p className="text-[9px] text-zinc-400 truncate">Total Registered</p>
           </CardContent>
         </Card>
 
-        {/* Average Resolution Time */}
-        <Card className="border-zinc-800 bg-zinc-950/70">
-          <CardContent className="p-4 space-y-1">
-            <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
-              Avg Repair Duration
-            </span>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-white">
-                {metrics ? `${metrics.avg_resolution_time_hours}h` : '—'}
-              </span>
-              <Badge className="bg-zinc-900 text-zinc-300 border-zinc-700 font-mono text-[10px]">
-                Target &lt; 2.5h
-              </Badge>
+        {/* Card 3: Critical Issues */}
+        <Card className="border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 transition-all">
+          <CardContent className="p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-[10px] font-mono uppercase tracking-wider">Critical</span>
+              <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
             </div>
-            <p className="text-[10px] text-zinc-400 pt-1">
-              Benchmarked resolution turnaround
-            </p>
+            <div className="text-xl font-bold font-mono text-white">
+              {metrics ? (metrics.critical_issues_count || 0).toLocaleString() : '—'}
+            </div>
+            <p className="text-[9px] text-red-400/80 truncate">High Severity SLA</p>
           </CardContent>
         </Card>
 
-        {/* Total Managed Outlay */}
-        <Card className="border-zinc-800 bg-zinc-950/70">
-          <CardContent className="p-4 space-y-1">
-            <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
-              Total Managed Outlay
-            </span>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-white">
-                ₹{metrics ? (metrics.total_estimated_cost_inr / 100000).toFixed(2) : '—'}L
-              </span>
-              <Badge className="bg-zinc-900 text-zinc-300 border-zinc-700 font-mono text-[10px]">
-                INR Benchmark
-              </Badge>
+        {/* Card 4: Pending Pipeline */}
+        <Card className="border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 transition-all">
+          <CardContent className="p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-[10px] font-mono uppercase tracking-wider">Pending</span>
+              <Clock className="h-3.5 w-3.5 text-amber-400" />
             </div>
-            <p className="text-[10px] text-zinc-400 pt-1">
-              Cumulative infrastructure investment
-            </p>
+            <div className="text-xl font-bold font-mono text-white">
+              {metrics ? (metrics.active_complaints ?? activeWorkOrders.length) : '—'}
+            </div>
+            <p className="text-[9px] text-amber-400/80 truncate">In Triage / Repair</p>
+          </CardContent>
+        </Card>
+
+        {/* Card 5: Resolved Cases */}
+        <Card className="border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 transition-all">
+          <CardContent className="p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-[10px] font-mono uppercase tracking-wider">Resolved</span>
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            </div>
+            <div className="text-xl font-bold font-mono text-white">
+              {metrics ? (metrics.resolved_cases || 0).toLocaleString() : '—'}
+            </div>
+            <p className="text-[9px] text-emerald-400/80 truncate">Verified &amp; Closed</p>
+          </CardContent>
+        </Card>
+
+        {/* Card 6: Workers / Technicians */}
+        <Card className="border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 transition-all">
+          <CardContent className="p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-[10px] font-mono uppercase tracking-wider">Workers</span>
+              <Wrench className="h-3.5 w-3.5 text-purple-400" />
+            </div>
+            <div className="text-xl font-bold font-mono text-white">
+              {metrics ? (metrics.total_technicians_count || 0) : '—'}
+            </div>
+            <p className="text-[9px] text-zinc-400 truncate">Field Tech Roster</p>
+          </CardContent>
+        </Card>
+
+        {/* Card 7: Assets / Equipment */}
+        <Card className="border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 transition-all">
+          <CardContent className="p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-[10px] font-mono uppercase tracking-wider">Assets</span>
+              <Database className="h-3.5 w-3.5 text-cyan-400" />
+            </div>
+            <div className="text-xl font-bold font-mono text-white">
+              {metrics ? (metrics.total_equipment_count || metrics.equipment_breakdown?.length || 0) : '—'}
+            </div>
+            <p className="text-[9px] text-zinc-400 truncate">Inventory Units</p>
+          </CardContent>
+        </Card>
+
+        {/* Card 8: Expenses / Financials */}
+        <Card className="border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 transition-all">
+          <CardContent className="p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-[10px] font-mono uppercase tracking-wider">Expenses</span>
+              <IndianRupee className="h-3.5 w-3.5 text-emerald-400" />
+            </div>
+            <div className="text-xl font-bold font-mono text-white">
+              ₹{metrics ? ((metrics.total_expenses_inr || metrics.total_estimated_cost_inr || 0) >= 100000 ? `${((metrics.total_expenses_inr || metrics.total_estimated_cost_inr || 0) / 100000).toFixed(1)}L` : `${((metrics.total_expenses_inr || metrics.total_estimated_cost_inr || 0) / 1000).toFixed(1)}k`) : '—'}
+            </div>
+            <p className="text-[9px] text-zinc-400 truncate">Managed Outlay</p>
           </CardContent>
         </Card>
       </div>
@@ -1178,6 +1224,78 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </CardContent>
         </Card>
       </div>
+ 
+       {/* Money Management & Workforce Budget vs Spending Bar Chart */}
+       <Card className="border-zinc-800 bg-zinc-950/70 shadow-md">
+         <CardHeader className="pb-3 border-b border-zinc-850 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+           <div>
+             <CardTitle className="text-sm font-mono font-bold text-white flex items-center gap-2">
+               <Wallet className="h-4 w-4 text-emerald-400" />
+               Money Management &amp; Monthly Spending vs Budgeted Allocation
+             </CardTitle>
+             <CardDescription className="text-xs text-zinc-400 mt-0.5">
+               Financial telemetry comparing planned infrastructure maintenance budgets against actual labor payouts and parts expenditures.
+             </CardDescription>
+           </div>
+ 
+           <div className="flex items-center gap-3 font-mono text-xs">
+             <div className="p-2 rounded-md bg-zinc-900 border border-zinc-800 flex items-center gap-2 text-zinc-300">
+               <IndianRupee className="h-3.5 w-3.5 text-emerald-400" />
+               <span>Settled Staff Payouts: <strong className="text-white">₹{(metrics?.total_labor_paid_inr || 0).toLocaleString('en-IN')}</strong></span>
+             </div>
+             <div className="p-2 rounded-md bg-zinc-900 border border-zinc-800 flex items-center gap-2 text-zinc-300 hidden md:flex">
+               <TrendingUp className="h-3.5 w-3.5 text-sky-400" />
+               <span>Technicians Active: <strong className="text-white">{metrics?.total_technicians_count ?? 0} Staff</strong></span>
+             </div>
+           </div>
+         </CardHeader>
+ 
+         <CardContent className="pt-4">
+           {metrics?.spending_vs_budget && metrics.spending_vs_budget.length > 0 ? (
+             <div className="h-72 w-full">
+               <ResponsiveContainer width="100%" height="100%">
+                 <BarChart
+                   data={metrics.spending_vs_budget}
+                   margin={{ top: 15, right: 20, left: 10, bottom: 10 }}
+                 >
+                   <CartesianGrid strokeDasharray="2 2" stroke="#27272a" opacity={0.6} />
+                   <XAxis
+                     dataKey="month"
+                     tick={{ fill: '#a1a1aa', fontSize: 11, fontFamily: 'monospace' }}
+                   />
+                   <YAxis
+                     tick={{ fill: '#a1a1aa', fontSize: 11, fontFamily: 'monospace' }}
+                     tickFormatter={(val) => `₹${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
+                   />
+                   <Tooltip
+                     contentStyle={{
+                       backgroundColor: '#09090b',
+                       borderColor: '#27272a',
+                       borderRadius: '8px',
+                       fontSize: '11px',
+                       fontFamily: 'monospace',
+                       color: '#ffffff',
+                     }}
+                     formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']}
+                   />
+                   <Legend
+                     wrapperStyle={{ paddingTop: '10px', fontSize: '11px', fontFamily: 'monospace' }}
+                   />
+                   <Bar dataKey="budget_allocation" fill="#52525b" radius={[4, 4, 0, 0]} name="Budget Allocation (₹)" />
+                   <Bar dataKey="actual_spending" fill="#10b981" radius={[4, 4, 0, 0]} name="Actual Spending (₹)" />
+                   <Bar dataKey="labor_spend" fill="#38bdf8" radius={[4, 4, 0, 0]} name="Labor Payouts (₹)" />
+                   <Bar dataKey="parts_spend" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Replacement Parts (₹)" />
+                 </BarChart>
+               </ResponsiveContainer>
+             </div>
+           ) : (
+             <div className="h-64 flex flex-col items-center justify-center text-center p-6 text-zinc-500 font-mono text-xs border border-dashed border-zinc-850 rounded-lg">
+               <Wallet className="h-8 w-8 mb-2 text-zinc-700" />
+               <span>No monthly financial allocations recorded yet.</span>
+             </div>
+           )}
+         </CardContent>
+       </Card>
 
       {/* Campus Location Hotspots */}
       <Card className="border-zinc-800 bg-zinc-950/70">
