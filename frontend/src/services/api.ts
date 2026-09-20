@@ -20,16 +20,57 @@ import {
 } from '../types';
 
 
-function getApiBaseUrl(): string {
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
+export function getApiBaseUrl(): string {
+  // 1. Check dynamic runtime override in localStorage
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const custom = window.localStorage.getItem('fm_api_base_url');
+    if (custom && custom.trim()) {
+      let u = custom.trim().replace(/\/+$/, '');
+      if (!u.endsWith('/api/v1')) {
+        u = `${u}/api/v1`;
+      }
+      return u;
+    }
   }
+
+  // 2. Check Vite build-time environment variable
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    let u = envUrl.trim().replace(/\/+$/, '');
+    if (!u.endsWith('/api/v1')) {
+      u = `${u}/api/v1`;
+    }
+    return u;
+  }
+
+  // 3. Localhost development fallback
   if (typeof window !== 'undefined' && window.location) {
     const host = window.location.hostname || 'localhost';
-    const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${proto}//${host}:8000/api/v1`;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      return `${proto}//${host}:8000/api/v1`;
+    }
   }
+
   return 'http://localhost:8000/api/v1';
+}
+
+export function setCustomApiBaseUrl(url: string): void {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    if (!url || !url.trim()) {
+      window.localStorage.removeItem('fm_api_base_url');
+    } else {
+      let clean = url.trim().replace(/\/+$/, '');
+      if (!clean.endsWith('/api/v1')) {
+        clean = `${clean}/api/v1`;
+      }
+      window.localStorage.setItem('fm_api_base_url', clean);
+    }
+  }
+}
+
+export function getEffectiveApiBase(): string {
+  return getApiBaseUrl();
 }
 
 const API_BASE = getApiBaseUrl();

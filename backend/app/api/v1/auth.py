@@ -69,11 +69,33 @@ async def login_admin(
     admin = res.scalar_one_or_none()
 
     if not admin:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password. Please verify your credentials.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # Check if database is fresh (0 admin users) - auto-initialize initial manager
+        count_res = await db.execute(select(func.count(AdminUser.id)))
+        if (count_res.scalar() or 0) == 0:
+            from backend.app.core.auth import hash_password
+            salt, pw_hash = hash_password(payload.password if len(payload.password) >= 3 else "admin123")
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            admin = AdminUser(
+                username=username_clean if username_clean else "admin",
+                password_hash=pw_hash,
+                salt=salt,
+                full_name="Facility Administrator",
+                email="admin@campus.edu",
+                phone="+91 98765 43210",
+                role="Facility Director",
+                is_active=True,
+                created_at=now_str,
+                last_login=now_str,
+            )
+            db.add(admin)
+            await db.commit()
+            await db.refresh(admin)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password. Please verify your credentials.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     if not verify_password(payload.password, admin.password_hash, admin.salt):
         raise HTTPException(

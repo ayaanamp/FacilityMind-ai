@@ -14,10 +14,12 @@ import {
   fetchHealth,
   fetchNotifications,
   fetchOrganizationStatus,
+  getApiBaseUrl,
   logoutAdmin,
+  setCustomApiBaseUrl,
 } from './services/api';
 import { AdminUser, DecisionReport, NotificationItem, OrganizationProfile, SimilarCase } from './types';
-import { Loader2, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, Loader2, Sparkles, X } from 'lucide-react';
 
 const DashboardView = lazy(() =>
   import('./pages/DashboardView').then((m) => ({ default: m.DashboardView }))
@@ -356,6 +358,43 @@ export function App() {
         unreadNotificationsCount={unreadNotificationsCount}
         isWsConnected={isWsConnected}
       />
+
+      {/* Backend Disconnected Banner with 1-Click Live Configurator */}
+      {!isBackendHealthy && (
+        <div className="bg-amber-950/90 border-b border-amber-700/80 px-4 py-2.5 text-xs text-amber-200 flex flex-wrap items-center justify-between gap-3 animate-in fade-in shadow-lg">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 animate-pulse" />
+            <span>
+              <strong>Backend Disconnected:</strong> Could not reach backend API at <code className="bg-black/60 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px] border border-amber-800">{getApiBaseUrl()}</code>.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const current = localStorage.getItem('fm_api_base_url') || '';
+                const input = prompt('Enter your live backend URL (e.g. https://facilitymind-backend.onrender.com):', current);
+                if (input !== null && input.trim()) {
+                  setCustomApiBaseUrl(input.trim());
+                  window.location.reload();
+                }
+              }}
+              className="bg-amber-400 hover:bg-amber-300 text-black font-bold px-3 py-1 rounded text-xs transition-all active:scale-95 shadow-sm"
+            >
+              Connect Live Backend URL
+            </button>
+            <button
+              onClick={() => {
+                fetchHealth()
+                  .then((h) => setIsBackendHealthy(h.status === 'ok'))
+                  .catch(() => setIsBackendHealthy(false));
+              }}
+              className="border border-amber-600 hover:bg-amber-900/50 text-amber-200 px-2.5 py-1 rounded text-xs transition-all"
+            >
+              Retry Connection
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">

@@ -77,7 +77,12 @@ def create_application() -> FastAPI:
         expose_headers=["*"],
     )
 
-    # Root & Docs Redirects
+    # Root & Docs Redirects / Health probes for Render & Cloud
+    @app.get("/health", include_in_schema=False)
+    @app.get("/healthz", include_in_schema=False)
+    async def health_probe():
+        return {"status": "ok", "service": "FacilityMind AI Backend", "version": settings.VERSION}
+
     @app.get("/", include_in_schema=False)
     async def root_redirect():
         return RedirectResponse(url=f"{settings.API_PREFIX}/docs")
