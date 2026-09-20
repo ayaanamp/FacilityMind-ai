@@ -95,8 +95,30 @@ def create_application() -> FastAPI:
     async def redoc_redirect():
         return RedirectResponse(url=f"{settings.API_PREFIX}/redoc")
 
-    # Include versioned API router
+    # Include versioned API router first
     app.include_router(api_router, prefix=settings.API_PREFIX)
+
+    # Mount frontend Single Page Application (SPA) if dist bundle is present
+    frontend_dist = root_dir / "frontend" / "dist"
+    if (frontend_dist / "index.html").exists():
+        from fastapi.responses import FileResponse
+        from fastapi.staticfiles import StaticFiles
+
+        if (frontend_dist / "assets").exists():
+            app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_spa_frontend(full_path: str):
+            if full_path.startswith("api/") or full_path in ["docs", "redoc", "openapi.json", "health", "healthz"]:
+                return RedirectResponse(url=f"{settings.API_PREFIX}/docs")
+            target = frontend_dist / full_path
+            if full_path and target.exists() and target.is_file():
+                return FileResponse(target)
+            return FileResponse(frontend_dist / "index.html")
+    else:
+        @app.get("/", include_in_schema=False)
+        async def root_redirect():
+            return RedirectResponse(url=f"{settings.API_PREFIX}/docs")
 
     return app
 
